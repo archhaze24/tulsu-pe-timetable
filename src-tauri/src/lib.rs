@@ -12,3 +12,6 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+// 1. проверяем есть ли конфиг если нет создаём
+// 2. есть ли бд если нет создаём и мигрируем (путь берём из конфига)
