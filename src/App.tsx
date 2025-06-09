@@ -7,6 +7,7 @@ function App() {
   const [greetMsg, setGreetMsg] = createSignal("");
   const [name, setName] = createSignal("");
 
+  // todo: почему-то ничего не работает 🫠
   async function greetFunction() {
     const result = await greet({name: name()})
     if (result.ok) {

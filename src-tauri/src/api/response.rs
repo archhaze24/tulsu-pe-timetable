@@ -1,5 +1,6 @@
 use serde::Serialize;
 
+// Обёртка для хендлеров: используем при каждом ответе.
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum ApiResponse<T> {
