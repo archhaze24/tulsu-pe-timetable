@@ -1,0 +1,14 @@
+[workspace]
+members         = ["src-tauri"]
+resolver        = "2"
+default-members = ["src-tauri"]
+
+# фиктивный пакет, нужен только для корректного TOML-парсинга
+[package]
+name     = "tulsu-pe-timetable-workspace"
+version  = "0.0.0"
+edition  = "2021"
+publish  = false
+
+[lib] # чтобы Cargo не ругался
+path = "noop.rs"

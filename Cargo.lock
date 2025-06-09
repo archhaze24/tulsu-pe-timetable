@@ -4044,6 +4044,7 @@ dependencies = [
  "tauri-utils",
  "thiserror 2.0.12",
  "tokio",
+ "tracing",
  "tray-icon",
  "url",
  "urlpattern",
@@ -4211,6 +4212,7 @@ dependencies = [
  "tao",
  "tauri-runtime",
  "tauri-utils",
+ "tracing",
  "url",
  "webkit2gtk",
  "webview2-com",
@@ -4652,6 +4654,10 @@ dependencies = [
  "tauri-plugin-opener",
  "tokio",
 ]
+
+[[package]]
+name = "tulsu-pe-timetable-workspace"
+version = "0.0.0"
 
 [[package]]
 name = "typeid"
@@ -5523,6 +5529,7 @@ dependencies = [
  "soup3",
  "tao-macros",
  "thiserror 2.0.12",
+ "tracing",
  "url",
  "webkit2gtk",
  "webkit2gtk-sys",
