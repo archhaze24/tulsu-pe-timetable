@@ -1,7 +1,18 @@
-# Tauri + Solid + Typescript
+# TulSU PE Timetable
 
-This template should help get you started developing with Tauri, Solid and Typescript in Vite.
+A convenient app for TulSU PE timetable management.
 
-## Recommended IDE Setup
+## Project setup
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+1. Install rust (preferably via [rustup](https://rustup.rs/)) and node.js.
+2. Enable corepack: `corepack enable`.
+3. Install lld (for faster builds). See `src-tauri/.cargo/config.toml` for instructions.
+4. Run `pnpm install`.
+5. Run `pnpm tauri dev`
+
+## Building
+
+```
+pnpm tauri build 
+pnpm tauri bundle
+```
