@@ -55,6 +55,10 @@ jobs:
           key: windows-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: windows-pnpm-
 
+      - name: Install JS deps (pnpm)
+        shell: pwsh
+        run: pnpm install --frozen-lockfile --prefer-offline
+
       # 5. Install tauri‑cli (prebuilt)
       - uses: taiki-e/install-action@v2
         with:
