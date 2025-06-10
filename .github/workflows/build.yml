@@ -14,56 +14,62 @@ concurrency:
 
 jobs:
   build-windows:
-    runs-on: windows-latest        # GitHub’s newest Windows image (currently Windows 2022)
+    runs-on: windows-latest        # GitHub’s newest Windows image
     timeout-minutes: 60
 
     env:
       RUST_BACKTRACE: full
-      FRONTEND_DIR: frontend       # Change if Solid/Vite lives elsewhere
+      FRONTEND_DIR: frontend       # Path to Solid/Vite app
 
     steps:
-      # ──────────────────────────────────── 1. Checkout code ────────────────────────────────────
+      # ────────────────────────── 1. Checkout ──────────────────────────
       - uses: actions/checkout@v4
 
-      # ──────────────────────────────────── 2. Rust toolchain (stable) ──────────────────────────
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+      # ────────────────────────── 2. Rust toolchain ────────────────────
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
 
-      # ──────────────────────────────────── 3. Cache Cargo artefacts ────────────────────────────
+      # ────────────────────────── 3. Cargo cache ───────────────────────
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
             ${{ github.workspace }}/src-tauri -> target
-          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
 
-      # ──────────────────────────────────── 4. Node 22 & pnpm via Corepack ──────────────────────
+      # ────────────────────────── 4. Node 22 (no built‑in pnpm cache) ──
       - uses: actions/setup-node@v4
         with:
-          node-version: 22           # Bump here when new LTS arrives
-          cache: 'pnpm'              # Adds ~/.local/share/pnpm to cache automatically
+          node-version: 22
 
-      - name: Enable pnpm 9 with Corepack
+      # ────────────────────────── 5. Enable pnpm 9 via Corepack ────────
+      - name: Enable pnpm
         run: |
           corepack enable
           corepack prepare pnpm@9 --activate
-          pnpm --version            # Log version for diagnostics
+          pnpm --version
 
-      # ──────────────────────────────────── 5. JS deps ──────────────────────────────────────────
+      # ────────────────────────── 6. Cache pnpm store ──────────────────
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.LOCALAPPDATA }}\\pnpm-store
+          key: windows-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: windows-pnpm-
+
+      # ────────────────────────── 7. JS dependencies ───────────────────
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
-      # ──────────────────────────────────── 6. Build frontend (Solid + Vite) ────────────────────
+      # ────────────────────────── 8. Build frontend ────────────────────
       - name: Build frontend
         run: pnpm run build
         working-directory: ${{ env.FRONTEND_DIR }}
 
-      # ──────────────────────────────────── 7. Tauri build (Rust workspace) ─────────────────────
+      # ────────────────────────── 9. Tauri bundle ──────────────────────
       - name: Build Windows bundle with Tauri
         run: cargo tauri build --ci --workspace --target x86_64-pc-windows-msvc
 
-      # ──────────────────────────────────── 8. Upload artifacts ────────────────────────────────
+      # ────────────────────────── 10. Upload artifacts ─────────────────
       - uses: actions/upload-artifact@v4
         with:
           name: windows-bundles
@@ -73,12 +79,12 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # ──────────────────────────────────── 9. (Optional) Code signing ──────────────────────────
-      # Provide WINDOWS_CERT (base64‑encoded .pfx) & WINDOWS_CERT_PASSWORD secrets to enable
+      # ────────────────────────── 11. (Optional) Sign binaries ─────────
+      # Uncomment when you have WINDOWS_CERT & WINDOWS_CERT_PASSWORD secrets
       # - name: Sign Windows binaries
       #   if: env.WINDOWS_CERT && env.WINDOWS_CERT_PASSWORD
       #   shell: powershell
       #   run: |
       #     $certPath = "$env:TEMP\\windows.pfx"
       #     [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERT))
-      #     signtool sign /f $certPath /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 src-tauri/target/release/bundle/windows/*.*
+      #     signtool sign /f $certPath /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 src-tauri/target/release/bundle/windows\\*.*
