@@ -12,86 +12,73 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  RUST_BACKTRACE: full
+
 jobs:
   build-windows:
-    runs-on: windows-latest        # GitHub’s newest Windows image
+    runs-on: windows-latest       # GitHub image (Windows 2022)
     timeout-minutes: 60
 
-    env:
-      RUST_BACKTRACE: full
-
     steps:
-      # ────────────────────────── 1. Checkout ──────────────────────────
-      - uses: actions/checkout@v4
+      # ───────────── 1. Checkout repo ─────────────
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # ────────────────────────── 2. Rust toolchain ────────────────────
-      - uses: dtolnay/rust-toolchain@stable
+      # ───────────── 2. Rust toolchain ────────────
+      - name: Setup Rust (stable)
+        uses: actions-rs/toolchain@v1
         with:
-          targets: x86_64-pc-windows-msvc
+          profile: minimal
+          toolchain: stable
+          override: true
 
-      # ────────────────────────── 3. Cargo cache ───────────────────────
+      # Cache Cargo registry / target
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            ${{ github.workspace }}/src-tauri -> target
 
-      # ────────────────────────── 4. Node 22 (no built‑in pnpm cache) ──
-      - uses: actions/setup-node@v4
+      # ───── 3. Node 22 + PNPM 10 ─────
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      # ────────────────────────── 5. Enable pnpm 9 via Corepack ────────
-      - name: Enable pnpm 9
+      - name: Enable Corepack & pin PNPM 10
+        shell: pwsh
         run: |
           corepack enable
-          corepack prepare pnpm@9 --activate
-          pnpm --version
-        shell: pwsh
+          corepack prepare pnpm@10 --activate
+          pnpm -v
 
-      # ────────────────────────── 6. Cache pnpm store ──────────────────
+      # Cache pnpm‑store (Windows default path)
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
           path: ${{ env.LOCALAPPDATA }}\\pnpm-store
           key: windows-pnpm-${{ hashFiles('src/pnpm-lock.yaml') }}
-          restore-keys: windows-pnpm-
 
-      # ────────────────────────── 7. JS dependencies ───────────────────
+      # ───────────── 4. Frontend build ────────────
       - name: Install JS dependencies
+        shell: pwsh
         run: pnpm install --frozen-lockfile
-        shell: pwsh
 
-      # ────────────────────────── 8. Build frontend ────────────────────
       - name: Build frontend
+        shell: pwsh
         run: pnpm run build
-        shell: pwsh
 
-      # ────────────────────────── 9. Install Tauri CLI (Rust) ──────────
-      - name: Install cargo‑tauri CLI
-        run: cargo install tauri-cli --version "^2.0.0" --locked --force
-        shell: pwsh
-
-      # ────────────────────────── 10. Tauri bundle ─────────────────────
-      - name: Build Windows bundle with Tauri
-        run: cargo tauri build --ci --workspace --target x86_64-pc-windows-msvc
-        shell: pwsh
-
-      # ────────────────────────── 11. Upload artifacts ─────────────────
-      - uses: actions/upload-artifact@v4
+      # ───────────── 5. Tauri CLI (prebuilt) ──────
+      - name: Install tauri‑cli (prebuilt)
+        uses: taiki-e/install-action@v2
         with:
-          name: windows-bundles
-          path: |
-            src-tauri/target/release/bundle/windows/**/*.msi
-            src-tauri/target/release/bundle/windows/**/*.exe
-          if-no-files-found: error
-          retention-days: 30
+          tool: tauri-cli@2        # grabs latest 2.x binary ≈ 5‑10 s
 
-      # ────────────────────────── 12. (Optional) Sign binaries ─────────
-      # Uncomment when you have WINDOWS_CERT & WINDOWS_CERT_PASSWORD secrets
-      # - name: Sign Windows binaries
-      #   if: env.WINDOWS_CERT && env.WINDOWS_CERT_PASSWORD
-      #   shell: powershell
-      #   run: |
-      #     $certPath = "$env:TEMP\\windows.pfx"
-      #     [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERT))
-      #     signtool sign /f $certPath /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 src-tauri/target/release/bundle/windows\*.*
+      # ───────────── 6. Rust backend build ────────
+      - name: Build Tauri bundle
+        shell: pwsh
+        run: cargo tauri build --ci --target x86_64-pc-windows-msvc
+
+      # ───────────── 7. Upload artifacts ──────────
+      - name: Upload bundle artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-windows
+          path: src-tauri/target/release/bundle/*
