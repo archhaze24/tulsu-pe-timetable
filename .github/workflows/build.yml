@@ -72,10 +72,6 @@ jobs:
         working-directory: src
         shell: pwsh
         run: pnpm install --frozen-lockfile --prefer-offline
-      - name: Build frontend
-        working-directory: src
-        shell: pwsh
-        run: pnpm run build
 
       # cargo‑chef via cargo‑binstall — warm Rust deps cache
       - name: Install cargo-binstall (prebuilt)
