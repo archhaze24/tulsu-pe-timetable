@@ -34,21 +34,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2   # caches ~/.cargo, ~/.rustup & target
 
-      # ───────────── 3. cargo‑binstall (prebuilt) ─────────────
-      - name: Install cargo‑binstall
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-binstall
-
-      # ───────────── 4. Cache Rust deps with cargo‑chef ──────
-      - name: cargo‑chef prepare & cook
-        shell: pwsh
-        run: |
-          cargo binstall cargo-chef@0.1 --no-confirm --log-level warn
-          cargo chef prepare --recipe-path recipe.json
-          cargo chef cook --release --recipe-path recipe.json
-
-      # ───────────── 5. Node 22 + PNPM 10 ──────────
+      # ───────────── 3. Node 22 + PNPM 10 ──────────
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
@@ -75,25 +61,25 @@ jobs:
           path: ${{ env.LOCALAPPDATA }}\\pnpm\\store
           key: windows-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
 
-      # ───────────── 6. JS dependencies ────────────
+      # ───────────── 4. JS dependencies ────────────
       - name: Install JS deps (pnpm)
         shell: pwsh
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      # ───────────── 7. Tauri CLI (prebuilt) ──────
+      # ───────────── 5. Tauri CLI (prebuilt) ──────
       - name: Install tauri‑cli (prebuilt)
         uses: taiki-e/install-action@v2
         with:
           tool: tauri-cli@2
 
-      # ───────────── 8. Build Tauri bundle ────────
+      # ───────────── 6. Build Tauri bundle ────────
       - name: Build Tauri bundle
         shell: pwsh
         run: cargo tauri build --ci
 
-      # ───────────── 9. Upload artifacts ──────────
+      # ───────────── 7. Upload artifacts ──────────
       - name: Upload bundle artifacts
         uses: actions/upload-artifact@v4
         with:
           name: tauri-windows
-          path: target/*/release/bundle/**/*
+          path: target/**/release/bundle/**/*
