@@ -63,7 +63,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm_cache_path.outputs.store_path }}
-          key: windows-pnpm-${{ hashFiles('src/pnpm-lock.yaml') }}
+          key: windows-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             windows-pnpm-
 
