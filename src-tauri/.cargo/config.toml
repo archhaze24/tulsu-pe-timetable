@@ -2,6 +2,9 @@
 # might need to change path delimiters from / to \ in windows, idk
 DATABASE_URL="sqlite://./src-tauri/test-app-data/test.sqlite"
 
+[env]
+RUSTFLAGS = "-C target-cpu=native"
+
 # .cargo/config.toml
 # On Windows
 # ```

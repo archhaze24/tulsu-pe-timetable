@@ -12,3 +12,10 @@ publish  = false
 
 [lib] # чтобы Cargo не ругался
 path = "noop.rs"
+
+[profile.release]
+codegen-units = 1
+lto           = true
+opt-level     = "s"
+panic         = "abort"
+strip         = true
