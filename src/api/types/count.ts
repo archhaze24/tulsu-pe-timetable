@@ -1,5 +1,5 @@
 export type CountRequest = {
-  offset: number;
+  id: number;
 };
 
 
