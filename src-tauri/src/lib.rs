@@ -7,10 +7,12 @@ mod utils;
 
 use crate::api::handlers::*;
 use tauri_helper::tauri_collect_commands;
+use crate::config::create::get_or_create_config;
 use crate::db::Db;
 
 pub async fn run() -> anyhow::Result<()> {
-    let db = Db::new("test.db").await.expect("DB init failed");
+    let config = get_or_create_config()?;
+    let db = Db::new(config.db_path.as_str()).await.expect("DB init failed");
 
     tauri::Builder::default()
         .manage(db)

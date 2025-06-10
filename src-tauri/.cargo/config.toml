@@ -1,3 +1,7 @@
+# needed for rustrover, do not put it inside rustrover's settings or else it will behave diferrently
+# might need to change path delimiters from / to \ in windows, idk
+DATABASE_URL="sqlite://./src-tauri/test-app-data/test.sqlite"
+
 # .cargo/config.toml
 # On Windows
 # ```
