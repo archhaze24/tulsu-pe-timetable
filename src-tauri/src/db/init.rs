@@ -6,7 +6,7 @@ use sqlx::SqlitePool;
 
 static MIGRATOR: Migrator = sqlx::migrate!();
 
-pub async fn init_db(db_path: &str) -> Result<SqlitePool, Box<dyn std::error::Error>> {
+pub async fn init_db(db_path: &str) -> anyhow::Result<SqlitePool> {
     let db_uri = format!("sqlite://{}", db_path);
 
     // Создаём папку и файл БД, если его нет
@@ -17,7 +17,7 @@ pub async fn init_db(db_path: &str) -> Result<SqlitePool, Box<dyn std::error::Er
         }
     }
     if !db_file.exists() {
-        fs::File::create(&db_path)?;
+        fs::File::create(db_path)?;
     }
 
     let pool = SqlitePoolOptions::new().connect(&db_uri).await?;

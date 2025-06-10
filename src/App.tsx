@@ -19,7 +19,7 @@ function App() {
   }
 
   async function countFunction() {
-    const result = await count({offset: counter()})
+    const result = await count({id: 1})
     if (result.ok) {
       setCounter(result.data)
     } else {
