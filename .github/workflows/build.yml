@@ -1,8 +1,8 @@
 name: Windows Build
 
 on:
-  push: { branches: [ main, dev ], tags: [ 'v*.*.*' ] }
-  pull_request: { branches: [ main, dev ] }
+  push: { branches: [ main ], tags: [ 'v*.*.*' ] }
+  pull_request: { branches: [ main ] }
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -30,7 +30,7 @@ jobs:
         with:
           prefix-key: v0-tauri-win
 
-      # 3 Node 22 + PNPM 10 (с автоматическим кешом)
+      # 3 Node 22 + PNPM 10 (автокеш)
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -53,7 +53,7 @@ jobs:
       - name: Pre-compile Rust deps (cargo-chef)
         run: |
           cargo binstall cargo-chef@0.1 --no-confirm --log-level warn
-          cargo chef prepare --recipe-path recipe.json --workspace
+          cargo chef prepare --recipe-path recipe.json
           cargo chef cook   --recipe-path recipe.json --release --target-dir "$env:CARGO_TARGET_DIR"
         shell: pwsh
 
