@@ -3,7 +3,7 @@ name: CI / Windows Build & Bundle
 on:
   push:
     branches: [main, dev]
-    tags:   ['v*.*.*']
+    tags:   ['v*.*.*']          # e.g. v1.2.3
   pull_request:
     branches: [main, dev]
 
@@ -13,6 +13,7 @@ concurrency:
 
 env:
   RUST_BACKTRACE: full
+  CARGO_TARGET_DIR: target     # unify build artifacts for cargo-chef & cargo tauri
 
 jobs:
   build-windows:
@@ -20,29 +21,28 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      # Checkout sources
+      # ────────── 1. Checkout ──────────
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      # Rust toolchain + cache (deps, build‑artifacts)
-      - name: Setup Rust (stable)
-        uses: actions-rs/toolchain@v1
+      # ────────── 2. Rust toolchain + cache ──────────
+      - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - name: Restore cargo/target cache
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
+          # Hash Cargo.lock + all Cargo.toml to invalidate on deps change
           prefix-key: v0-rust
-          cache-targets: true
-          cache-all-crates: false
-          cache-bin: true
 
-      # Node 22 & PNPM 10
+      # ────────── 3. Node 22 + pnpm 10 ──────────
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
+
       - name: Enable Corepack & pin PNPM 10
         shell: pwsh
         run: |
@@ -50,56 +50,56 @@ jobs:
           corepack prepare pnpm@10 --activate
           pnpm -v
 
-      # Detect pnpm store path + cache
+      # ────────── 4. Detect pnpm‑store and cache it ──────────
       - name: Detect pnpm store path
-        id: pnpm_cache_path
+        id: pnpm_store
         shell: pwsh
         run: |
           $store = pnpm store path --silent
+          if (-not (Test-Path $store)) { New-Item -ItemType Directory -Force -Path $store | Out-Null }
           Write-Host "pnpm store → $store"
-          if (!(Test-Path $store)) { New-Item -ItemType Directory -Force -Path $store | Out-Null }
-          "store_path=$store" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "store_path=$store" | Out-File -Encoding utf8 -Append $env:GITHUB_OUTPUT
+
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
-          path: ${{ steps.pnpm_cache_path.outputs.store_path }}
+          path: ${{ steps.pnpm_store.outputs.store_path }}
           key: windows-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             windows-pnpm-
 
-      # JS deps & build (Solid frontend lives in src/)
-      - name: Install JS deps (pnpm)
-        working-directory: src
+      # ────────── 5. Install JS deps & build frontend ──────────
+      - name: Install dependencies (pnpm)
         shell: pwsh
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      # cargo‑chef via cargo‑binstall — warm Rust deps cache
-      - name: Install cargo-binstall (prebuilt)
+      # ────────── 6. cargo-chef via cargo-binstall ──────────
+      - name: Install cargo-binstall
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-binstall
-      - name: Prepare & cook dependency graph (cargo‑chef)
+
+      - name: Prepare Rust deps layer (cargo-chef)
         shell: pwsh
         run: |
           cargo binstall cargo-chef@0.1 --no-confirm --log-level warn
           cargo chef prepare --recipe-path recipe.json
-          cargo chef cook --release --recipe-path recipe.json
+          cargo chef cook --release --recipe-path recipe.json --target-dir target
 
-      # tauri‑cli (prebuilt)
-      - name: Install tauri‑cli (prebuilt)
+      # ────────── 7. Install tauri‑cli (prebuilt) ──────────
+      - name: Install tauri‑cli
         uses: taiki-e/install-action@v2
         with:
           tool: tauri-cli@2
 
-      # Build Tauri bundle (only final crate; deps already cached)
-      - name: Build Tauri bundle
+      # ────────── 8. Build Windows bundle ──────────
+      - name: Tauri build (Windows x64)
         shell: pwsh
         run: cargo tauri build --ci
 
-      # Upload Windows installers (MSI + NSIS)
+      # ────────── 9. Upload bundle artifacts ──────────
       - name: Upload bundle artifacts
         uses: actions/upload-artifact@v4
         with:
           name: tauri-windows
           path: target/**/release/bundle/**/*
-          if-no-files-found: error
