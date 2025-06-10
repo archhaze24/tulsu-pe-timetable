@@ -1,11 +1,8 @@
-name: CI / Windows Build & Bundle
+name: Windows Build
 
 on:
-  push:
-    branches: [main, dev]
-    tags:   ['v*.*.*']          # e.g. v1.2.3
-  pull_request:
-    branches: [main, dev]
+  push: { branches: [ main, dev ], tags: [ 'v*.*.*' ] }
+  pull_request: { branches: [ main, dev ] }
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -13,93 +10,66 @@ concurrency:
 
 env:
   RUST_BACKTRACE: full
-  CARGO_TARGET_DIR: target     # unify build artifacts for cargo-chef & cargo tauri
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target   # <-- один каталог для chef и release
 
 jobs:
-  build-windows:
+  build-win:
     runs-on: windows-latest
     timeout-minutes: 60
 
     steps:
-      # ────────── 1. Checkout ──────────
+      # 1 Checkout
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+        with: { submodules: recursive }
 
-      # ────────── 2. Rust toolchain + cache ──────────
+      # 2 Rust toolchain + cache
       - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: Swatinem/rust-cache@v2
-        with:
-          # Hash Cargo.lock + all Cargo.toml to invalidate on deps change
-          prefix-key: v0-rust
+        with: { profile: minimal, toolchain: stable, override: true }
 
-      # ────────── 3. Node 22 + pnpm 10 ──────────
-      - name: Setup Node 22
-        uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@v2     # кэширует ~/.cargo + target/*
+        with:
+          prefix-key: v0-tauri-win
+
+      # 3 Node 22 + PNPM 10 (с автоматическим кешом)
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+          cache-dependency-path: 'pnpm-lock.yaml'
 
-      - name: Enable Corepack & pin PNPM 10
-        shell: pwsh
+      - name: Enable Corepack & pin pnpm 10
         run: |
           corepack enable
           corepack prepare pnpm@10 --activate
           pnpm -v
-
-      # ────────── 4. Detect pnpm‑store and cache it ──────────
-      - name: Detect pnpm store path
-        id: pnpm_store
         shell: pwsh
-        run: |
-          $store = pnpm store path --silent
-          if (-not (Test-Path $store)) { New-Item -ItemType Directory -Force -Path $store | Out-Null }
-          Write-Host "pnpm store → $store"
-          "store_path=$store" | Out-File -Encoding utf8 -Append $env:GITHUB_OUTPUT
 
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.pnpm_store.outputs.store_path }}
-          key: windows-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            windows-pnpm-
-
-      # ────────── 5. Install JS deps & build frontend ──────────
-      - name: Install dependencies (pnpm)
-        shell: pwsh
+      - name: Install JS dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
-
-      # ────────── 6. cargo-chef via cargo-binstall ──────────
-      - name: Install cargo-binstall
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-binstall
-
-      - name: Prepare Rust deps layer (cargo-chef)
         shell: pwsh
+
+      # 5 cargo-chef (предсобранный бинарь через cargo-binstall)
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-binstall }
+
+      - name: Pre-compile Rust deps (cargo-chef)
         run: |
           cargo binstall cargo-chef@0.1 --no-confirm --log-level warn
-          cargo chef prepare --recipe-path recipe.json
-          cargo chef cook --release --recipe-path recipe.json --target-dir target
-
-      # ────────── 7. Install tauri‑cli (prebuilt) ──────────
-      - name: Install tauri‑cli
-        uses: taiki-e/install-action@v2
-        with:
-          tool: tauri-cli@2
-
-      # ────────── 8. Build Windows bundle ──────────
-      - name: Tauri build (Windows x64)
+          cargo chef prepare --recipe-path recipe.json --workspace
+          cargo chef cook   --recipe-path recipe.json --release --target-dir "$env:CARGO_TARGET_DIR"
         shell: pwsh
-        run: cargo tauri build --ci
 
-      # ────────── 9. Upload bundle artifacts ──────────
-      - name: Upload bundle artifacts
-        uses: actions/upload-artifact@v4
+      # 6 tauri-cli (prebuilt)
+      - uses: taiki-e/install-action@v2
+        with: { tool: tauri-cli@2 }
+
+      # 7 Build & bundle
+      - name: Tauri build
+        run: cargo tauri build --ci
+        shell: pwsh
+
+      # 8 Upload artifacts
+      - uses: actions/upload-artifact@v4
         with:
           name: tauri-windows
-          path: target/**/release/bundle/**/*
+          path: ${{ env.CARGO_TARGET_DIR }}/**/bundle/**/*
