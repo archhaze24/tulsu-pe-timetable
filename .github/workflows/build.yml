@@ -19,7 +19,6 @@ jobs:
 
     env:
       RUST_BACKTRACE: full
-      FRONTEND_DIR: src            # 👉 SolidJS root folder
 
     steps:
       # ────────────────────────── 1. Checkout ──────────────────────────
@@ -59,12 +58,12 @@ jobs:
 
       # ────────────────────────── 7. JS dependencies ───────────────────
       - name: Install JS dependencies
-        run: pnpm --dir $env:FRONTEND_DIR install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
         shell: pwsh
 
       # ────────────────────────── 8. Build frontend ────────────────────
       - name: Build frontend
-        run: pnpm --dir $env:FRONTEND_DIR run build
+        run: pnpm run build
         shell: pwsh
 
       # ────────────────────────── 9. Tauri bundle ──────────────────────
