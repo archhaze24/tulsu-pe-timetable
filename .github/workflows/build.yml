@@ -54,22 +54,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.LOCALAPPDATA }}\\pnpm-store
-          key: windows-pnpm-${{ hashFiles('src/pnpm-lock.yaml') }}
+          key: windows-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
 
-      # ───────────── 4. Frontend build ────────────
+      # ───────────── 4. JS dependencies ────────────
       - name: Install JS dependencies
         shell: pwsh
         run: pnpm install --frozen-lockfile
-
-      - name: Build frontend
-        shell: pwsh
-        run: pnpm run build
 
       # ───────────── 5. Tauri CLI (prebuilt) ──────
       - name: Install tauri‑cli (prebuilt)
         uses: taiki-e/install-action@v2
         with:
-          tool: tauri-cli@2        # grabs latest 2.x binary ≈ 5‑10 s
+          tool: tauri-cli@2        # grabs latest 2.x binary ≈5‑10s
 
       # ───────────── 6. Rust backend build ────────
       - name: Build Tauri bundle

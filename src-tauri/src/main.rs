@@ -3,5 +3,5 @@
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tulsu_pe_timetable::run().await
+    tulsu_pe_timetable_lib::run().await
 }
