@@ -69,4 +69,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: tauri-windows
-          path: src-tauri/target/**/bundle/**/*
+          path: target/**/bundle/**/*
