@@ -1,3 +1,4 @@
+build/bin
 node_modules
-dist
-src-tauri/test-app-data
+frontend/dist
+.idea

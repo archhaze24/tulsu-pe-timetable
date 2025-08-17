@@ -1,18 +1,16 @@
-# TulSU PE Timetable
+# README
 
-A convenient app for TulSU PE timetable management.
+## About
 
-## Project setup
+This is the official Wails Svelte-TS template.
 
-1. Install rust (preferably via rustup), Node.js and Tauri.
-2. Enable corepack: `corepack enable`.
-3. Install lld (for faster builds). See `src-tauri/.cargo/config.toml` for instructions.
-4. Run `pnpm install`.
-5. Run `tauri dev`
+## Live Development
+
+To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
+server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
+and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
+to this in your browser, and you can call your Go code from devtools.
 
 ## Building
 
-```
-pnpm tauri build 
-pnpm tauri bundle
-```
+To build a redistributable, production mode package, use `wails build`.
