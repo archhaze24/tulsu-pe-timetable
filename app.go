@@ -21,7 +21,18 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-// Greet returns a greeting for the given name
-func (a *App) Greet(name string) string {
-	return fmt.Sprintf("Hello %s, It's show time!", name)
+type ApiResponse[T any] struct {
+	Data  T      `json:"data"`
+	Error string `json:"error"`
+}
+
+type GreetResponse struct {
+	Message string `json:"message"`
+}
+
+func (a *App) Greet(name string) ApiResponse[GreetResponse] {
+	return ApiResponse[GreetResponse]{
+		Data:  GreetResponse{Message: fmt.Sprintf("Hello %s, It's show time!", name)},
+		Error: "",
+	}
 }
