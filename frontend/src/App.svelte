@@ -6,7 +6,7 @@
   let name: string
 
   function greet(): void {
-    Greet(name).then(result => resultText = result)
+    Greet(name).then(result => resultText = result.data.message)
   }
 </script>
 
