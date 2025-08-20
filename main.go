@@ -2,6 +2,9 @@ package main
 
 import (
 	"embed"
+	"log"
+	"tulsu-pe-timetable/backend/app_services"
+	"tulsu-pe-timetable/backend/config"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -12,11 +15,17 @@ import (
 var assets embed.FS
 
 func main() {
+	// Загружаем конфигурацию
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
+	}
+
 	// Create an instance of the app structure
-	app := NewApp()
+	app := app_services.NewApp(cfg)
 
 	// Create application with options
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:  "tulsu-pe-timetable",
 		Width:  1024,
 		Height: 768,
@@ -24,7 +33,7 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
+		OnStartup:        app.Startup,
 		Bind: []interface{}{
 			app,
 		},
@@ -34,3 +43,5 @@ func main() {
 		println("Error:", err.Error())
 	}
 }
+
+// Удаляем старые неиспользуемые функции и типы

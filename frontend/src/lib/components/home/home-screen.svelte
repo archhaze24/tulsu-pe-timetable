@@ -2,6 +2,9 @@
   import { t } from 'svelte-i18n'
   import logo from '../../../assets/images/logo-universal.png'
   import { navigate } from '../../stores/router'
+  import type {config} from '../../../wailsjs/go/models'
+
+  export let configData: config.Config | null = null
 
   const go = (name: string) => navigate(name as any)
 </script>
@@ -25,6 +28,15 @@
   </div>
 
   <div class="mt-8 text-xs text-slate-400">{$t('app_name')}</div>
+  
+  {#if configData}
+    <div class="mt-6 p-4 bg-slate-800/60 rounded-lg border border-slate-700">
+      <h3 class="text-sm font-medium text-slate-200 mb-2">Информация о конфигурации:</h3>
+      <p class="text-xs text-slate-400 mb-1">
+        <span class="text-slate-300">База данных:</span> {configData.dbPath}
+      </p>
+    </div>
+  {/if}
 </div>
 
 

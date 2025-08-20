@@ -9,5 +9,9 @@
   "author": {
     "name": "Kirill Belolipetsky",
     "email": "archhaze24@gmail.com"
+  },
+  "log": {
+    "stdout": true,
+    "stderr": true
   }
 }
