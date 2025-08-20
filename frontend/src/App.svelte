@@ -1,21 +1,54 @@
 <script lang="ts">
   import logo from './assets/images/logo-universal.png'
-  import {Greet} from '../wailsjs/go/main/App.js'
+  import {GetConfig, GetConfigPath} from '../wailsjs/go/app_services/App.js'
+  import type {config} from '../wailsjs/go/models'
 
-  let resultText: string = "Please enter your name below 👇"
-  let name: string
+  let resultText: string = "Загрузка конфигурации..."
+  let configPath: string = ""
+  let configData: config.Config | null = null
 
-  function greet(): void {
-    Greet(name).then(result => resultText = result.data.message)
+  async function loadConfig(): Promise<void> {
+    try {
+      // Загружаем конфигурацию
+      const configResponse = await GetConfig()
+      if (configResponse.error) {
+        resultText = `Ошибка загрузки конфигурации: ${configResponse.error}`
+        return
+      }
+      configData = configResponse.data
+      
+      // Получаем путь к конфигурации
+      const pathResponse = await GetConfigPath()
+      if (pathResponse.error) {
+        configPath = `Ошибка получения пути: ${pathResponse.error}`
+      } else {
+        configPath = pathResponse.data
+      }
+      
+      resultText = "Конфигурация загружена успешно!"
+    } catch (error) {
+      resultText = `Ошибка: ${error}`
+    }
   }
+
+  // Загружаем конфигурацию при старте
+  loadConfig()
 </script>
 
 <main>
   <img alt="Wails logo" id="logo" src="{logo}">
   <div class="result" id="result">{resultText}</div>
+  
+  {#if configData}
+    <div class="config-info">
+      <h3>Информация о конфигурации:</h3>
+      <p><strong>Путь к базе данных:</strong> {configData.dbPath}</p>
+      <p><strong>Файл конфигурации:</strong> {configPath}</p>
+    </div>
+  {/if}
+  
   <div class="input-box" id="input">
-    <input autocomplete="off" bind:value={name} class="input" id="name" type="text"/>
-    <button class="btn" on:click={greet}>Greet</button>
+    <button class="btn" on:click={loadConfig}>Обновить конфигурацию</button>
   </div>
 </main>
 
@@ -74,6 +107,28 @@
   .input-box .input:focus {
     border: none;
     background-color: rgba(255, 255, 255, 1);
+  }
+
+  .config-info {
+    margin: 2rem auto;
+    padding: 1rem;
+    background-color: rgba(240, 240, 240, 0.8);
+    border-radius: 8px;
+    max-width: 600px;
+  }
+
+  .config-info h3 {
+    margin: 0 0 1rem 0;
+    color: #333;
+  }
+
+  .config-info p {
+    margin: 0.5rem 0;
+    color: #666;
+  }
+
+  .config-info strong {
+    color: #333;
   }
 
 </style>

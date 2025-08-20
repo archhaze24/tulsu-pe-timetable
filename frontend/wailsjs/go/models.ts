@@ -1,28 +1,16 @@
-export namespace main {
+export namespace app_services {
 	
-	export class GreetResponse {
-	    message: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new GreetResponse(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.message = source["message"];
-	    }
-	}
-	export class ApiResponse_main_GreetResponse_ {
-	    data: GreetResponse;
+	export class ApiResponse__tulsu_pe_timetable_backend_config_Config_ {
+	    data?: config.Config;
 	    error: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new ApiResponse_main_GreetResponse_(source);
+	        return new ApiResponse__tulsu_pe_timetable_backend_config_Config_(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.data = this.convertValues(source["data"], GreetResponse);
+	        this.data = this.convertValues(source["data"], config.Config);
 	        this.error = source["error"];
 	    }
 	
@@ -43,6 +31,51 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class ApiResponse_bool_ {
+	    data: boolean;
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApiResponse_bool_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.data = source["data"];
+	        this.error = source["error"];
+	    }
+	}
+	export class ApiResponse_string_ {
+	    data: string;
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApiResponse_string_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.data = source["data"];
+	        this.error = source["error"];
+	    }
+	}
+
+}
+
+export namespace config {
+	
+	export class Config {
+	    dbPath: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dbPath = source["dbPath"];
+	    }
 	}
 
 }
