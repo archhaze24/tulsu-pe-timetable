@@ -1,79 +1,22 @@
 <script lang="ts">
-  import logo from './assets/images/logo-universal.png'
-  import {Greet} from '../wailsjs/go/main/App.js'
-
-  let resultText: string = "Please enter your name below 👇"
-  let name: string
-
-  function greet(): void {
-    Greet(name).then(result => resultText = result.data.message)
-  }
+  import HomeScreen from './lib/components/home/home-screen.svelte'
+  import FacultiesScreen from './lib/components/faculties/faculties-screen.svelte'
+  import FacultyEdit from './lib/components/faculties/faculty-edit.svelte'
+  import DirectionsScreen from './lib/components/directions/directions-screen.svelte'
+  import DirectionEdit from './lib/components/directions/direction-edit.svelte'
+  import { route } from './lib/stores/router'
 </script>
 
-<main>
-  <img alt="Wails logo" id="logo" src="{logo}">
-  <div class="result" id="result">{resultText}</div>
-  <div class="input-box" id="input">
-    <input autocomplete="off" bind:value={name} class="input" id="name" type="text"/>
-    <button class="btn" on:click={greet}>Greet</button>
-  </div>
+<main class="min-h-screen bg-slate-900 text-slate-50 font-sans flex items-center justify-center">
+  {#if $route.name === 'home'}
+    <HomeScreen />
+  {:else if $route.name === 'faculties'}
+    <FacultiesScreen />
+  {:else if $route.name === 'faculty_edit'}
+    <FacultyEdit />
+  {:else if $route.name === 'directions'}
+    <DirectionsScreen />
+  {:else if $route.name === 'direction_edit'}
+    <DirectionEdit />
+  {/if}
 </main>
-
-<style>
-
-  #logo {
-    display: block;
-    width: 50%;
-    height: 50%;
-    margin: auto;
-    padding: 10% 0 0;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
-    background-origin: content-box;
-  }
-
-  .result {
-    height: 20px;
-    line-height: 20px;
-    margin: 1.5rem auto;
-  }
-
-  .input-box .btn {
-    width: 60px;
-    height: 30px;
-    line-height: 30px;
-    border-radius: 3px;
-    border: none;
-    margin: 0 0 0 20px;
-    padding: 0 8px;
-    cursor: pointer;
-  }
-
-  .input-box .btn:hover {
-    background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);
-    color: #333333;
-  }
-
-  .input-box .input {
-    border: none;
-    border-radius: 3px;
-    outline: none;
-    height: 30px;
-    line-height: 30px;
-    padding: 0 10px;
-    background-color: rgba(240, 240, 240, 1);
-    -webkit-font-smoothing: antialiased;
-  }
-
-  .input-box .input:hover {
-    border: none;
-    background-color: rgba(255, 255, 255, 1);
-  }
-
-  .input-box .input:focus {
-    border: none;
-    background-color: rgba(255, 255, 255, 1);
-  }
-
-</style>
