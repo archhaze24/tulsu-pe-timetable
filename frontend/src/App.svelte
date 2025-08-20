@@ -5,6 +5,8 @@
   import DirectionsScreen from './lib/components/directions/directions-screen.svelte'
   import DirectionEdit from './lib/components/directions/direction-edit.svelte'
   import { route } from './lib/stores/router'
+  import TeachersScreen from './lib/components/teachers/teachers-screen.svelte'
+  import TeacherEdit from './lib/components/teachers/teacher-edit.svelte'
   import {GetConfig, GetConfigPath} from '../wailsjs/go/app_services/App.js'
   import type {config} from '../wailsjs/go/models'
 
@@ -40,5 +42,9 @@
     <DirectionsScreen />
   {:else if $route.name === 'direction_edit'}
     <DirectionEdit />
+  {:else if $route.name === 'teachers'}
+    <TeachersScreen />
+  {:else if $route.name === 'teacher_edit'}
+    <TeacherEdit />
   {/if}
 </main>
