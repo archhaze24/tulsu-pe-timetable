@@ -1,0 +1,30 @@
+{
+  "welcome": "Добро пожаловать!",
+  "schedule": "Расписание",
+  "teachers": "Преподаватели",
+  "directions": "Направления",
+  "faculties": "Факультеты",
+  "app_name": "Расписание Физкультуры",
+  "home_description": "Система для удобного составления расписания занятий по физической культуре",
+  "back": "Назад",
+  "edit_faculty": "Редактирование факультета",
+  "faculty_name": "Название факультета",
+  "faculty_name_placeholder": "Введите название",
+  "save": "Сохранить",
+  "cancel": "Отмена",
+  "faculty_not_found": "Факультет не найден",
+  "create": "Создать",
+  "delete": "Удалить",
+  "create_faculty": "Создать факультет",
+  "edit_direction": "Редактирование направления",
+  "create_direction": "Создать направление",
+  "direction_name": "Название направления",
+  "direction_address": "Адрес",
+  "direction_name_placeholder": "Введите название",
+  "direction_address_placeholder": "Введите адрес",
+  "assign_teachers": "Привязка преподавателей",
+  "search_placeholder": "Поиск",
+  "assigned": "Назначен"
+}
+
+
