@@ -24,7 +24,24 @@
   "direction_address_placeholder": "Введите адрес",
   "assign_teachers": "Привязка преподавателей",
   "search_placeholder": "Поиск",
-  "assigned": "Назначен"
+  "assigned": "Назначен",
+  "edit_teacher": "Редактирование преподавателя",
+  "create_teacher": "Создать преподавателя",
+  "teacher_last_name": "Фамилия",
+  "teacher_first_name": "Имя",
+  "teacher_middle_name": "Отчество",
+  "teacher_last_name_placeholder": "Введите фамилию",
+  "teacher_first_name_placeholder": "Введите имя",
+  "teacher_middle_name_placeholder": "Введите отчество",
+  "teacher_direction": "Направление",
+  "select_direction": "Выберите направление",
+  "teacher_rate": "Ставка",
+  "increase": "Увеличить",
+  "decrease": "Уменьшить",
+  "confirm_title": "Подтверждение",
+  "confirm_message_generic": "Вы точно хотите удалить эти данные?",
+  "confirm": "Удалить",
+  "dismiss": "Отмена"
 }
 
 
