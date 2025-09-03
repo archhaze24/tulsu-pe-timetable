@@ -7,6 +7,9 @@
   import { route } from './lib/stores/router'
   import TeachersScreen from './lib/components/teachers/teachers-screen.svelte'
   import TeacherEdit from './lib/components/teachers/teacher-edit.svelte'
+  import SemestersScreen from './lib/components/schedule/semesters-screen.svelte'
+  import SemesterEdit from './lib/components/schedule/semester-edit.svelte'
+  import ScheduleScreen from './lib/components/schedule/schedule-screen.svelte'
   import {GetConfig, GetConfigPath} from '../wailsjs/go/app_services/App.js'
   import type {config} from '../wailsjs/go/models'
 
@@ -29,9 +32,12 @@
 
   // Загружаем конфигурацию при старте
   loadConfig()
+
+  // Вспомогательное значение для передачи id семестра в редактор
+  $: routeSemesterId = Number(($route.params as any)?.id ?? 0)
 </script>
 
-<main class="min-h-screen bg-slate-900 text-slate-50 font-sans flex items-center justify-center">
+<main class="min-h-screen bg-slate-900 text-slate-50 font-sans { $route.name === 'schedule' ? '' : 'flex items-center justify-center' }">
   {#if $route.name === 'home'}
     <HomeScreen {configData} />
   {:else if $route.name === 'faculties'}
@@ -46,5 +52,11 @@
     <TeachersScreen />
   {:else if $route.name === 'teacher_edit'}
     <TeacherEdit />
+  {:else if $route.name === 'semesters'}
+    <SemestersScreen />
+  {:else if $route.name === 'semester_edit'}
+    <SemesterEdit id={routeSemesterId} />
+  {:else if $route.name === 'schedule'}
+    <ScheduleScreen />
   {/if}
 </main>
