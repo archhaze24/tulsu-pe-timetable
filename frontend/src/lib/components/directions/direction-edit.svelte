@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from 'svelte-i18n'
   import { directionsStore, updateDirection, addDirection, toggleTeacher } from '../../stores/directions'
-  import { teachersStore, type Teacher } from '../../stores/teachers'
+  import { teachersStore, type Teacher, formatTeacherName } from '../../stores/teachers'
   import { navigate, route } from '../../stores/router'
   import { derived } from 'svelte/store'
 
@@ -33,7 +33,7 @@
   const filteredTeachers = derived(teachersStore, ($t) => {
     const q = search.trim().toLowerCase()
     if (!q) return $t
-    return $t.filter(t => t.name.toLowerCase().includes(q))
+    return $t.filter(t => formatTeacherName(t).toLowerCase().includes(q))
   })
 
   const toggle = (teacher: Teacher) => {
@@ -64,7 +64,7 @@
     <div class="mt-3 max-h-60 overflow-auto rounded-md ring-1 ring-white/10 divide-y divide-white/5">
       {#each $filteredTeachers as teacher}
         <button class="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-800/60 text-left" on:click={() => toggle(teacher)}>
-          <span>{teacher.name}</span>
+          <span>{formatTeacherName(teacher)}</span>
           {#if $direction && $direction.teacherIds.includes(teacher.id)}
             <span class="text-emerald-400 text-xs">{$t('assigned')}</span>
           {/if}
