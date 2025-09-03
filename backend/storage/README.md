@@ -27,7 +27,6 @@ storage/
 ### Faculty (Факультет)
 - `ID` - уникальный идентификатор
 - `Name` - полное название факультета
-- `ShortName` - краткое название
 - `CreatedAt`, `UpdatedAt` - временные метки
 
 ### Teacher (Преподаватель)
@@ -94,7 +93,6 @@ err := storage.Directions.Delete(1)
 // Создание
 faculty, err := storage.Faculties.Create(storage.CreateFacultyRequest{
     Name:      "Факультет информационных технологий",
-    ShortName: "ФИТ",
 })
 
 // Получение всех

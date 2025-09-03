@@ -3,7 +3,6 @@ package storage
 import (
 	"database/sql"
 	"fmt"
-	"time"
 	"tulsu-pe-timetable/backend/locales"
 )
 
@@ -19,181 +18,328 @@ func NewLessonsRepository(db *sql.DB) *LessonsRepository {
 
 // Create создает новое занятие
 func (r *LessonsRepository) Create(req CreateLessonRequest) (*Lesson, error) {
-	query := `
-		INSERT INTO lessons (faculty_id, direction_id, teacher_id, day_of_week, lesson_number, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`
-	
-	now := time.Now()
-	result, err := r.db.Exec(query, req.FacultyID, req.DirectionID, req.TeacherID, req.DayOfWeek, req.LessonNumber, now, now)
+	// Начинаем транзакцию
+	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_failed")+": %w", err)
 	}
-	
+	defer tx.Rollback()
+
+	// Создаем занятие
+	query := `
+		INSERT INTO lessons (semester_id, day_of_week, start_time, end_time, direction_id, teacher_count)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`
+
+	result, err := tx.Exec(query, req.SemesterID, req.DayOfWeek, req.StartTime, req.EndTime, req.DirectionID, req.TeacherCount)
+	if err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_failed")+": %w", err)
+	}
+
 	id, err := result.LastInsertId()
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_id_failed")+": %w", err)
 	}
-	
+
+	// Добавляем связи с факультетами
+	for _, facultyID := range req.FacultyIDs {
+		_, err := tx.Exec("INSERT INTO lesson_faculties (lesson_id, faculty_id) VALUES (?, ?)", id, facultyID)
+		if err != nil {
+			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_faculty_link_failed")+": %w", err)
+		}
+	}
+
+	// Добавляем связи с преподавателями
+	for _, teacherID := range req.TeacherIDs {
+		_, err := tx.Exec("INSERT INTO lesson_teachers (lesson_id, teacher_id) VALUES (?, ?)", id, teacherID)
+		if err != nil {
+			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_teacher_link_failed")+": %w", err)
+		}
+	}
+
+	// Подтверждаем транзакцию
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.commit_failed")+": %w", err)
+	}
+
 	return &Lesson{
 		ID:           id,
-		FacultyID:    req.FacultyID,
-		DirectionID:  req.DirectionID,
-		TeacherID:    req.TeacherID,
+		SemesterID:   req.SemesterID,
 		DayOfWeek:    req.DayOfWeek,
-		LessonNumber: req.LessonNumber,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		StartTime:    req.StartTime,
+		EndTime:      req.EndTime,
+		DirectionID:  req.DirectionID,
+		TeacherCount: req.TeacherCount,
+		FacultyIDs:   req.FacultyIDs,
+		TeacherIDs:   req.TeacherIDs,
 	}, nil
 }
 
-// GetByID получает занятие по ID
+// GetByID получает занятие по ID со всеми связанными данными
 func (r *LessonsRepository) GetByID(id int64) (*Lesson, error) {
+	// Получаем основную информацию о занятии
 	query := `
-		SELECT l.id, l.faculty_id, l.direction_id, l.teacher_id, l.day_of_week, l.lesson_number, 
-		       l.created_at, l.updated_at,
-		       f.name as faculty_name, d.name as direction_name,
-		       t.last_name || ' ' || t.first_name as teacher_name
+		SELECT l.id, l.semester_id, l.day_of_week, l.start_time, l.end_time, l.direction_id, l.teacher_count,
+		       s.name as semester_name, d.name as direction_name
 		FROM lessons l
-		LEFT JOIN faculties f ON l.faculty_id = f.id
+		LEFT JOIN semesters s ON l.semester_id = s.id
 		LEFT JOIN directions d ON l.direction_id = d.id
-		LEFT JOIN teachers t ON l.teacher_id = t.id
 		WHERE l.id = ?
 	`
-	
+
 	var lesson Lesson
+	var semesterName, directionName sql.NullString
+	var teacherCount sql.NullInt64
+
 	err := r.db.QueryRow(query, id).Scan(
 		&lesson.ID,
-		&lesson.FacultyID,
-		&lesson.DirectionID,
-		&lesson.TeacherID,
+		&lesson.SemesterID,
 		&lesson.DayOfWeek,
-		&lesson.LessonNumber,
-		&lesson.CreatedAt,
-		&lesson.UpdatedAt,
-		&lesson.FacultyName,
-		&lesson.DirectionName,
-		&lesson.TeacherName,
+		&lesson.StartTime,
+		&lesson.EndTime,
+		&lesson.DirectionID,
+		&teacherCount,
+		&semesterName,
+		&directionName,
 	)
-	
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.not_found"))
 		}
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_failed")+": %w", err)
 	}
-	
+
+	if teacherCount.Valid {
+		count := int(teacherCount.Int64)
+		lesson.TeacherCount = &count
+	}
+
+	if semesterName.Valid {
+		lesson.SemesterName = semesterName.String
+	}
+	if directionName.Valid {
+		lesson.DirectionName = directionName.String
+	}
+
+	// Получаем список факультетов
+	facultyIDs, facultyNames, err := r.getLessonFaculties(id)
+	if err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_faculties_failed")+": %w", err)
+	}
+	lesson.FacultyIDs = facultyIDs
+	lesson.FacultyNames = facultyNames
+
+	// Получаем список преподавателей
+	teacherIDs, teacherNames, err := r.getLessonTeachers(id)
+	if err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_teachers_failed")+": %w", err)
+	}
+	lesson.TeacherIDs = teacherIDs
+	lesson.TeacherNames = teacherNames
+
 	return &lesson, nil
 }
 
 // GetAll получает все занятия с связанными данными
 func (r *LessonsRepository) GetAll() ([]Lesson, error) {
 	query := `
-		SELECT l.id, l.faculty_id, l.direction_id, l.teacher_id, l.day_of_week, l.lesson_number, 
-		       l.created_at, l.updated_at,
-		       f.name as faculty_name, d.name as direction_name,
-		       t.last_name || ' ' || t.first_name as teacher_name
+		SELECT l.id, l.semester_id, l.day_of_week, l.start_time, l.end_time, l.direction_id, l.teacher_count,
+		       s.name as semester_name, d.name as direction_name
 		FROM lessons l
-		LEFT JOIN faculties f ON l.faculty_id = f.id
+		LEFT JOIN semesters s ON l.semester_id = s.id
 		LEFT JOIN directions d ON l.direction_id = d.id
-		LEFT JOIN teachers t ON l.teacher_id = t.id
-		ORDER BY l.day_of_week, l.lesson_number, f.name
+		ORDER BY l.day_of_week, l.start_time, s.name
 	`
-	
+
 	rows, err := r.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_all_failed")+": %w", err)
 	}
 	defer rows.Close()
-	
+
 	var lessons []Lesson
 	for rows.Next() {
 		var lesson Lesson
+		var semesterName, directionName sql.NullString
+		var teacherCount sql.NullInt64
+
 		err := rows.Scan(
 			&lesson.ID,
-			&lesson.FacultyID,
-			&lesson.DirectionID,
-			&lesson.TeacherID,
+			&lesson.SemesterID,
 			&lesson.DayOfWeek,
-			&lesson.LessonNumber,
-			&lesson.CreatedAt,
-			&lesson.UpdatedAt,
-			&lesson.FacultyName,
-			&lesson.DirectionName,
-			&lesson.TeacherName,
+			&lesson.StartTime,
+			&lesson.EndTime,
+			&lesson.DirectionID,
+			&teacherCount,
+			&semesterName,
+			&directionName,
 		)
 		if err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.scan_failed")+": %w", err)
 		}
+
+		if teacherCount.Valid {
+			count := int(teacherCount.Int64)
+			lesson.TeacherCount = &count
+		}
+
+		if semesterName.Valid {
+			lesson.SemesterName = semesterName.String
+		}
+		if directionName.Valid {
+			lesson.DirectionName = directionName.String
+		}
+
+		// Получаем связанные факультеты и преподавателей для каждого занятия
+		facultyIDs, facultyNames, err := r.getLessonFaculties(lesson.ID)
+		if err != nil {
+			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_faculties_failed")+": %w", err)
+		}
+		lesson.FacultyIDs = facultyIDs
+		lesson.FacultyNames = facultyNames
+
+		teacherIDs, teacherNames, err := r.getLessonTeachers(lesson.ID)
+		if err != nil {
+			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_teachers_failed")+": %w", err)
+		}
+		lesson.TeacherIDs = teacherIDs
+		lesson.TeacherNames = teacherNames
+
 		lessons = append(lessons, lesson)
 	}
-	
+
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.iterate_failed")+": %w", err)
 	}
-	
+
 	return lessons, nil
 }
 
-// Update обновляет занятие
+// Update обновляет занятие со всеми связями
 func (r *LessonsRepository) Update(req UpdateLessonRequest) (*Lesson, error) {
-	query := `
-		UPDATE lessons
-		SET faculty_id = ?, direction_id = ?, teacher_id = ?, day_of_week = ?, lesson_number = ?, updated_at = ?
-		WHERE id = ?
-	`
-	
-	now := time.Now()
-	result, err := r.db.Exec(query, req.FacultyID, req.DirectionID, req.TeacherID, req.DayOfWeek, req.LessonNumber, now, req.ID)
+	// Начинаем транзакцию
+	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.update_failed")+": %w", err)
 	}
-	
+	defer tx.Rollback()
+
+	// Обновляем основную информацию о занятии
+	query := `
+		UPDATE lessons
+		SET semester_id = ?, day_of_week = ?, start_time = ?, end_time = ?, direction_id = ?, teacher_count = ?
+		WHERE id = ?
+	`
+
+	result, err := tx.Exec(query, req.SemesterID, req.DayOfWeek, req.StartTime, req.EndTime, req.DirectionID, req.TeacherCount, req.ID)
+	if err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.update_failed")+": %w", err)
+	}
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.update_check_failed")+": %w", err)
 	}
-	
+
 	if rowsAffected == 0 {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.not_found"))
 	}
-	
+
+	// Удаляем старые связи с факультетами
+	_, err = tx.Exec("DELETE FROM lesson_faculties WHERE lesson_id = ?", req.ID)
+	if err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.delete_faculty_links_failed")+": %w", err)
+	}
+
+	// Добавляем новые связи с факультетами
+	for _, facultyID := range req.FacultyIDs {
+		_, err := tx.Exec("INSERT INTO lesson_faculties (lesson_id, faculty_id) VALUES (?, ?)", req.ID, facultyID)
+		if err != nil {
+			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_faculty_link_failed")+": %w", err)
+		}
+	}
+
+	// Удаляем старые связи с преподавателями
+	_, err = tx.Exec("DELETE FROM lesson_teachers WHERE lesson_id = ?", req.ID)
+	if err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.delete_teacher_links_failed")+": %w", err)
+	}
+
+	// Добавляем новые связи с преподавателями
+	for _, teacherID := range req.TeacherIDs {
+		_, err := tx.Exec("INSERT INTO lesson_teachers (lesson_id, teacher_id) VALUES (?, ?)", req.ID, teacherID)
+		if err != nil {
+			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_teacher_link_failed")+": %w", err)
+		}
+	}
+
+	// Подтверждаем транзакцию
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.commit_failed")+": %w", err)
+	}
+
 	return &Lesson{
 		ID:           req.ID,
-		FacultyID:    req.FacultyID,
-		DirectionID:  req.DirectionID,
-		TeacherID:    req.TeacherID,
+		SemesterID:   req.SemesterID,
 		DayOfWeek:    req.DayOfWeek,
-		LessonNumber: req.LessonNumber,
-		UpdatedAt:    now,
+		StartTime:    req.StartTime,
+		EndTime:      req.EndTime,
+		DirectionID:  req.DirectionID,
+		TeacherCount: req.TeacherCount,
+		FacultyIDs:   req.FacultyIDs,
+		TeacherIDs:   req.TeacherIDs,
 	}, nil
 }
 
-// Delete удаляет занятие
+// Delete удаляет занятие со всеми связями
 func (r *LessonsRepository) Delete(id int64) error {
-	query := `DELETE FROM lessons WHERE id = ?`
-	
-	result, err := r.db.Exec(query, id)
+	// Начинаем транзакцию
+	tx, err := r.db.Begin()
 	if err != nil {
 		return fmt.Errorf(locales.GetMessage("errors.lessons.delete_failed")+": %w", err)
 	}
-	
+	defer tx.Rollback()
+
+	// Удаляем связи с факультетами
+	_, err = tx.Exec("DELETE FROM lesson_faculties WHERE lesson_id = ?", id)
+	if err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.lessons.delete_faculty_links_failed")+": %w", err)
+	}
+
+	// Удаляем связи с преподавателями
+	_, err = tx.Exec("DELETE FROM lesson_teachers WHERE lesson_id = ?", id)
+	if err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.lessons.delete_teacher_links_failed")+": %w", err)
+	}
+
+	// Удаляем само занятие
+	result, err := tx.Exec("DELETE FROM lessons WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.lessons.delete_failed")+": %w", err)
+	}
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf(locales.GetMessage("errors.lessons.delete_check_failed")+": %w", err)
 	}
-	
+
 	if rowsAffected == 0 {
 		return fmt.Errorf(locales.GetMessage("errors.lessons.not_found"))
 	}
-	
+
+	// Подтверждаем транзакцию
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.lessons.commit_failed")+": %w", err)
+	}
+
 	return nil
 }
 
 // Exists проверяет существование занятия по ID
 func (r *LessonsRepository) Exists(id int64) (bool, error) {
 	query := `SELECT 1 FROM lessons WHERE id = ?`
-	
+
 	var exists int
 	err := r.db.QueryRow(query, id).Scan(&exists)
 	if err != nil {
@@ -202,6 +348,78 @@ func (r *LessonsRepository) Exists(id int64) (bool, error) {
 		}
 		return false, fmt.Errorf(locales.GetMessage("errors.lessons.exists_check_failed")+": %w", err)
 	}
-	
+
 	return true, nil
+}
+
+// getLessonFaculties получает список факультетов для занятия
+func (r *LessonsRepository) getLessonFaculties(lessonID int64) ([]int64, []string, error) {
+	query := `
+		SELECT f.id, f.name
+		FROM lesson_faculties lf
+		JOIN faculties f ON lf.faculty_id = f.id
+		WHERE lf.lesson_id = ?
+		ORDER BY f.name
+	`
+
+	rows, err := r.db.Query(query, lessonID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var facultyIDs []int64
+	var facultyNames []string
+	for rows.Next() {
+		var id int64
+		var name string
+		err := rows.Scan(&id, &name)
+		if err != nil {
+			return nil, nil, err
+		}
+		facultyIDs = append(facultyIDs, id)
+		facultyNames = append(facultyNames, name)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	return facultyIDs, facultyNames, nil
+}
+
+// getLessonTeachers получает список преподавателей для занятия
+func (r *LessonsRepository) getLessonTeachers(lessonID int64) ([]int64, []string, error) {
+	query := `
+		SELECT t.id, t.first_name || ' ' || t.last_name as full_name
+		FROM lesson_teachers lt
+		JOIN teachers t ON lt.teacher_id = t.id
+		WHERE lt.lesson_id = ?
+		ORDER BY t.last_name, t.first_name
+	`
+
+	rows, err := r.db.Query(query, lessonID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var teacherIDs []int64
+	var teacherNames []string
+	for rows.Next() {
+		var id int64
+		var name string
+		err := rows.Scan(&id, &name)
+		if err != nil {
+			return nil, nil, err
+		}
+		teacherIDs = append(teacherIDs, id)
+		teacherNames = append(teacherNames, name)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	return teacherIDs, teacherNames, nil
 }
