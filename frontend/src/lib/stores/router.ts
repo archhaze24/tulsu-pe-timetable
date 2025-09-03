@@ -1,6 +1,16 @@
 import { writable } from 'svelte/store'
 
-export type RouteName = 'home' | 'faculties' | 'faculty_edit' | 'directions' | 'direction_edit' | 'teachers' | 'teacher_edit'
+export type RouteName =
+  | 'home'
+  | 'faculties'
+  | 'faculty_edit'
+  | 'directions'
+  | 'direction_edit'
+  | 'teachers'
+  | 'teacher_edit'
+  | 'semesters'
+  | 'semester_edit'
+  | 'schedule'
 
 export interface RouteState {
   name: RouteName

@@ -2,7 +2,7 @@
   import { t } from 'svelte-i18n'
   import logo from '../../../assets/images/logo-universal.png'
   import { navigate } from '../../stores/router'
-  import type {config} from '../../../wailsjs/go/models'
+  import type {config} from '../../../../wailsjs/go/models'
 
   export let configData: config.Config | null = null
 
@@ -18,7 +18,7 @@
     <button class="w-full rounded-lg bg-slate-800/60 hover:bg-slate-800 active:bg-slate-700 px-4 py-3 text-base font-medium shadow-sm ring-1 ring-white/10 transition" on:click={() => go('faculties')}>
       {$t('faculties')}
     </button>
-    <button class="w-full rounded-lg bg-slate-800/60 hover:bg-slate-800 active:bg-slate-700 px-4 py-3 text-base font-medium shadow-sm ring-1 ring-white/10 transition">
+    <button class="w-full rounded-lg bg-slate-800/60 hover:bg-slate-800 active:bg-slate-700 px-4 py-3 text-base font-medium shadow-sm ring-1 ring-white/10 transition" on:click={() => go('semesters')}>
       {$t('schedule')}
     </button>
     <button class="w-full rounded-lg bg-slate-800/60 hover:bg-slate-800 active:bg-slate-700 px-4 py-3 text-base font-medium shadow-sm ring-1 ring-white/10 transition" on:click={() => go('teachers')}>

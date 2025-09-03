@@ -1,0 +1,358 @@
+<script lang="ts">
+  import { t } from 'svelte-i18n'
+  import { facultiesStore } from '../../stores/faculties'
+  import { directionsStore } from '../../stores/directions'
+  import { teachersStore, formatTeacherName } from '../../stores/teachers'
+  import { lessonsStore, semestersStore, timeSlotsStore, addTimeSlot, addLesson, deleteLesson, updateLesson, deleteTimeSlot, type Lesson, type TimeSlot } from '../../stores/semesters'
+  import { navigate, route } from '../../stores/router'
+  import { onDestroy } from 'svelte'
+
+  const back = () => navigate('semesters')
+
+  $: semesterId = ($route.params?.id as number) || $semestersStore[0]?.id
+  $: semester = $semestersStore.find(s => s.id === semesterId)
+
+  const days: { key: number; label: string }[] = [
+    { key: 1, label: $t('mon') },
+    { key: 2, label: $t('tue') },
+    { key: 3, label: $t('wed') },
+    { key: 4, label: $t('thu') },
+    { key: 5, label: $t('fri') },
+    { key: 6, label: $t('sat') },
+    { key: 7, label: $t('sun') },
+  ]
+
+  $: lessons = $lessonsStore.filter(l => l.semesterId === semesterId)
+  $: dayToSlots = new Map<number, string[]>(
+    days.map(d => [
+      d.key,
+      $timeSlotsStore
+        .filter(t => t.semesterId === semesterId && t.dayOfWeek === d.key)
+        .map(t => `${t.startTime}-${t.endTime}`)
+        .sort()
+    ])
+  )
+
+  function cellLessons(day: number, slot: string): Lesson[] {
+    const [start, end] = slot.split('-')
+    return lessons.filter(l => l.dayOfWeek === day && l.startTime === start && l.endTime === end)
+  }
+
+  function dirName(id: number): string {
+    return $directionsStore.find(d => d.id === id)?.name || ''
+  }
+
+  function teachersNames(ids: number[]): string {
+    return ids
+      .map(id => $teachersStore.find(t => t.id === id))
+      .filter(Boolean)
+      .map(t => formatTeacherName(t!))
+      .join(', ')
+  }
+
+  function facultiesNames(ids: number[]): string {
+    return ids
+      .map(id => $facultiesStore.find(f => f.id === id)?.name || '')
+      .join(', ')
+  }
+
+  function exportXLSX() {
+    alert('Экспорт XLSX будет реализован на бэкенде')
+  }
+
+  // Save schedule action (stub – integrate with backend via Wails later)
+  function saveSchedule() {
+    alert('Расписание сохранено')
+  }
+
+  // Add time slot popover (anchored to header button)
+  type Point = { x: number; y: number }
+  let addSlotPopover: Point | null = null
+  let addSlotDay: number = 1
+  let addSlotStart = '09:40'
+  let addSlotEnd = '11:15'
+  function openAddSlot(e: MouseEvent) {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const width = 360
+    const baseLeft = rect.left + (rect.width / 2) - (width / 2)
+    const minLeft = 8
+    const maxLeft = window.innerWidth - width - 8
+    const left = Math.max(minLeft, Math.min(maxLeft, baseLeft))
+    const top = rect.bottom + 8
+    addSlotPopover = { x: left, y: top }
+  }
+  function closeAddSlot() { addSlotPopover = null }
+  function createTimeSlot() {
+    if (!semesterId) return
+    const exists = $timeSlotsStore.some(t => t.semesterId === semesterId && t.dayOfWeek === (addSlotDay as any) && t.startTime === addSlotStart && t.endTime === addSlotEnd)
+    if (exists) {
+      alert($t('slot_exists'))
+      return
+    }
+    addTimeSlot({ semesterId, dayOfWeek: addSlotDay as any, startTime: addSlotStart, endTime: addSlotEnd })
+    addSlotPopover = null
+  }
+
+  function teacherLesson(day: number, slot: string, teacherId: number): Lesson | undefined {
+    return cellLessons(day, slot).find(l => l.teacherIds.includes(teacherId))
+  }
+
+  function toggleTeacherOnCell(day: number, slot: string, teacherId: number) {
+    const existing = teacherLesson(day, slot, teacherId)
+    const [start, end] = slot.split('-')
+    if (existing) {
+      deleteLesson(existing.id)
+      return
+    }
+    const directionId = $directionsStore.find(d => d.id === ($teachersStore.find(t => t.id === teacherId)?.directionId || 0))?.id || ($directionsStore[0]?.id || 1)
+    addLesson({
+      semesterId,
+      dayOfWeek: day as any,
+      startTime: start,
+      endTime: end,
+      directionId,
+      teacherIds: [teacherId],
+      facultyIds: facultiesForRow(day, slot),
+      teacherCount: 1
+    })
+  }
+
+  // Faculties per row (day+slot) mock management
+  function rowKey(day: number, slot: string): string { return `${semesterId}-${day}-${slot}` }
+  let rowFacultyMap: Map<string, number[]> = new Map()
+  function facultiesForRow(day: number, slot: string): number[] {
+    const key = rowKey(day, slot)
+    if (rowFacultyMap.has(key)) return rowFacultyMap.get(key) as number[]
+    const union = Array.from(new Set(
+      cellLessons(day, slot).flatMap(l => l.facultyIds)
+    ))
+    rowFacultyMap.set(key, union)
+    return union
+  }
+  function toggleRowFaculty(day: number, slot: string, facultyId: number) {
+    const key = rowKey(day, slot)
+    const current = facultiesForRow(day, slot)
+    const exists = current.includes(facultyId)
+    const next = exists ? current.filter(id => id !== facultyId) : [...current, facultyId]
+    rowFacultyMap.set(key, next)
+    rowFacultyVersion += 1
+    // propagate mock change into lessons on that row
+    const [start, end] = slot.split('-')
+    const affected = $lessonsStore.filter(l => l.semesterId === semesterId && l.dayOfWeek === day && l.startTime === start && l.endTime === end)
+    if (affected.length === 0) return
+    affected.forEach(l => {
+      updateLesson(l.id, { facultyIds: next })
+    })
+  }
+  // Single floating faculty popover anchored to the "+" button
+  let facultyPopover: { day: number; slot: string; pos: Point } | null = null
+  function openFacultyPopover(e: MouseEvent, day: number, slot: string) {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const width = 360
+    const baseLeft = rect.left + (rect.width / 2) - (width / 2)
+    const minLeft = 8
+    const maxLeft = window.innerWidth - width - 8
+    const left = Math.max(minLeft, Math.min(maxLeft, baseLeft))
+    const top = rect.bottom + 8
+    facultyPopover = { day, slot, pos: { x: left, y: top } }
+  }
+  function closeFacultyPopover() { facultyPopover = null }
+  // Version to force re-render when faculties map changes
+  let rowFacultyVersion = 0
+
+  // Rate info per teacher (12 pairs/week = 1.0 rate)
+  function rateInfo(teacherId: number) {
+    const RATE_FULL = 12
+    const assigned = $lessonsStore.filter(l => l.semesterId === semesterId && l.teacherIds.includes(teacherId)).length
+    const teacher = $teachersStore.find(t => t.id === teacherId)
+    if (!teacher) return null
+    const target = Math.round(teacher.rate * RATE_FULL)
+    const remaining = target - assigned
+    return { rate: teacher.rate, assigned, target, remaining, needed: Math.abs(remaining) }
+  }
+
+  function cellButtonClasses(assigned: boolean): string {
+    const base = 'w-full h-8 rounded-md ring-1 ring-white/10 text-center text-xs transition cursor-pointer select-none flex items-center justify-center '
+    return assigned ? base + 'bg-slate-800/60 hover:bg-slate-800 text-slate-100' : base + 'bg-slate-900 hover:bg-slate-800 text-transparent'
+  }
+
+  // Force re-render for lessons changes so "+" and rates update instantly
+  let lessonsVersion = 0
+  const unsubscribeLessons = lessonsStore.subscribe(() => { lessonsVersion += 1 })
+  onDestroy(unsubscribeLessons)
+
+  // Helpers for time slots
+  function parseSlot(slot: string): { start: string; end: string } {
+    const [start, end] = slot.split('-')
+    return { start, end }
+  }
+  function findTimeSlot(day: number, slot: string): TimeSlot | undefined {
+    const { start, end } = parseSlot(slot)
+    return $timeSlotsStore.find(t => t.semesterId === semesterId && t.dayOfWeek === (day as any) && t.startTime === start && t.endTime === end)
+  }
+  function deleteTimeSlotRow(day: number, slot: string) {
+    const ts = findTimeSlot(day, slot)
+    if (!ts) return
+    deleteTimeSlot(ts.id)
+  }
+</script>
+
+<div class="w-full h-screen flex flex-col px-4 py-4">
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center gap-3">
+      <button class="text-slate-300 hover:text-white text-sm" on:click={back}>← {$t('back')}</button>
+      {#if semester}
+        <h2 class="text-2xl font-semibold">{semester.name}</h2>
+      {/if}
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="rounded-md bg-indigo-600 hover:bg-indigo-500 px-3 py-2 text-xs" on:click={(e) => openAddSlot(e)}>{$t('add_slot')}</button>
+      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-xs" on:click={saveSchedule}>{$t('save_schedule')}</button>
+      <button class="rounded-md bg-indigo-600 hover:bg-indigo-500 px-3 py-2 text-xs" on:click={exportXLSX}>{$t('export_xlsx')}</button>
+    </div>
+  </div>
+
+  {#if addSlotPopover}
+    <div class="fixed z-30 w-[360px] rounded-lg bg-slate-900 ring-1 ring-white/10 p-4 shadow-xl" style={`left:${addSlotPopover.x}px; top:${addSlotPopover.y}px`} role="dialog" aria-modal="true">
+      <div class="text-sm text-slate-300 mb-2">{$t('add_slot')}</div>
+      <div class="grid gap-3 text-sm">
+        <div class="flex items-center gap-2">
+          <div class="text-slate-400 w-24">{$t('select_day')}</div>
+          <div class="flex flex-wrap items-center gap-1 min-w-0">
+            {#each days as d}
+              <button class="px-1.5 py-1 text-xs rounded-md ring-1 ring-white/10 transition {addSlotDay === d.key ? 'bg-indigo-600' : 'bg-slate-800 hover:bg-slate-700'}" on:click={() => addSlotDay = d.key}>{d.label}</button>
+            {/each}
+          </div>
+        </div>
+        <div class="grid grid-cols-[max-content_1fr_max-content] grid-rows-2 gap-x-4 items-center min-w-0">
+          <div class="text-slate-400 text-xs col-start-1 row-start-1">{$t('start_time')}</div>
+          <div class="text-slate-400 text-xs col-start-3 row-start-1">{$t('end_time')}</div>
+          <input class="w-24 rounded bg-slate-800 px-2 py-1 ring-1 ring-white/10 col-start-1 row-start-2" bind:value={addSlotStart} />
+          <div class="text-slate-400 text-center col-start-2 row-start-2 justify-self-center">—</div>
+          <input class="w-24 rounded bg-slate-800 px-2 py-1 ring-1 ring-white/10 col-start-3 row-start-2" bind:value={addSlotEnd} />
+        </div>
+        <div class="flex items-center justify-end gap-2 mt-1">
+          <button class="rounded-md bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs" on:click={closeAddSlot}>{$t('cancel')}</button>
+          <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs" on:click={createTimeSlot}>{$t('create')}</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <div class="flex-1 overflow-auto custom-scroll">
+    <table class="min-w-full text-sm border-separate w-full" style="border-spacing: 0;">
+      <thead>
+        <tr>
+          <th class="sticky left-0 z-20 bg-slate-900 text-center p-2 border-b border-slate-700 w-12">{$t('day')}</th>
+          <th class="sticky left-0 z-20 bg-slate-900 text-center p-2 border-b border-slate-700 w-24">{$t('time')}</th>
+          <th class="p-2 border-b border-slate-700 text-left">{$t('faculty')}</th>
+          {#each $teachersStore as teacher}
+            <th class="p-2 border-b border-slate-700 text-left">
+              <div class="text-xs text-slate-400">{($directionsStore.find(d => d.id === teacher.directionId)?.name) || ''}</div>
+              <div class="flex flex-col gap-1">
+                <div class="font-medium leading-tight">{formatTeacherName(teacher)}</div>
+                {#if rateInfo(teacher.id)}
+                  {#key lessonsVersion + '-' + teacher.id}
+                    <div class="flex items-center gap-2">
+                      <div class="h-1.5 w-24 rounded bg-slate-700 overflow-hidden">
+                        <div class="h-full"
+                          class:bg-emerald-400={rateInfo(teacher.id).remaining === 0}
+                          class:bg-amber-400={rateInfo(teacher.id).remaining < 0}
+                          class:bg-indigo-400={rateInfo(teacher.id).remaining > 0}
+                          style={`width: ${Math.min(100, Math.round((rateInfo(teacher.id).assigned / Math.max(1, rateInfo(teacher.id).target)) * 100))}%`}
+                        />
+                      </div>
+                      <div class="text-[10px] text-slate-400">
+                        {rateInfo(teacher.id).assigned}/{rateInfo(teacher.id).target}
+                      </div>
+                    </div>
+                  {/key}
+                {/if}
+              </div>
+            </th>
+          {/each}
+          <th class="p-2 border-b border-slate-700 text-right w-14"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each days as d}
+          {#each (dayToSlots.get(d.key) || []) as slot, i}
+            <tr class="align-top">
+              {#if i === 0}
+                <td class="sticky left-0 z-10 bg-slate-900 p-2 border-b border-slate-800 align-top text-center w-12" rowspan={(dayToSlots.get(d.key) || []).length}>{d.label}</td>
+              {/if}
+              <td class="sticky left-0 z-10 bg-slate-900 p-2 border-b border-slate-800 font-medium text-center w-24">{slot}</td>
+              <td class="p-2 border-b border-slate-800">
+                {#key rowFacultyVersion + '-' + rowKey(d.key, slot)}
+                  <div class="flex flex-wrap gap-1">
+                    {#each facultiesForRow(d.key, slot) as fid}
+                      <span class="px-2 py-1 text-[10px] rounded bg-slate-700">{$facultiesStore.find(f => f.id === fid)?.name}</span>
+                    {/each}
+                    <button class="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 ring-1 ring-white/10" on:click={(e) => openFacultyPopover(e, d.key, slot)}>+</button>
+                  </div>
+                {/key}
+              </td>
+              {#each $teachersStore as teacher}
+                <td class="p-2 border-b border-slate-800">
+                  {#key lessonsVersion + '-' + cellLessons(d.key, slot).map(l => l.id).join('-')}
+                    <button
+                      class={cellButtonClasses(!!teacherLesson(d.key, slot, teacher.id))}
+                      on:click={() => toggleTeacherOnCell(d.key, slot, teacher.id)}
+                      title={teacherLesson(d.key, slot, teacher.id) ? 'Снять назначение' : 'Назначить'}
+                      aria-label={teacherLesson(d.key, slot, teacher.id) ? 'Снять назначение' : 'Назначить'}
+                    >
+                      +
+                    </button>
+                  {/key}
+                </td>
+              {/each}
+              <td class="p-2 border-b border-slate-800 text-right">
+                <button class="px-2 py-1 text-xs rounded bg-rose-600/80 hover:bg-rose-600" title={$t('delete')} aria-label={$t('delete')} on:click={() => deleteTimeSlotRow(d.key, slot)}>×</button>
+              </td>
+            </tr>
+          {/each}
+        {/each}
+      </tbody>
+    </table>
+  </div>
+  {#if facultyPopover}
+    <div class="fixed z-30 w-[360px] rounded-lg bg-slate-900 ring-1 ring-white/10 p-3 shadow-xl" style={`left:${facultyPopover.pos.x}px; top:${facultyPopover.pos.y}px`} role="dialog" aria-modal="true">
+      <div class="text-xs text-slate-400 mb-2">{$t('add_faculty')}</div>
+      {#key rowFacultyVersion + '-' + rowKey(facultyPopover.day, facultyPopover.slot)}
+        <div class="max-h-64 overflow-auto grid gap-1 mb-3">
+          {#each $facultiesStore as f}
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" class="accent-indigo-500" checked={facultiesForRow(facultyPopover.day, facultyPopover.slot).includes(f.id)} on:change={() => toggleRowFaculty(facultyPopover.day, facultyPopover.slot, f.id)} />
+              <span>{f.name}</span>
+            </label>
+          {/each}
+        </div>
+      {/key}
+      <div class="flex items-center justify-end gap-2">
+        <button class="rounded-md bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs" on:click={closeFacultyPopover}>{$t('close')}</button>
+      </div>
+    </div>
+  {/if}
+  <style>
+    :global(.custom-scroll) {
+      scrollbar-color: rgba(99,102,241,0.5) rgba(255,255,255,0.06);
+      scrollbar-width: thin;
+    }
+    :global(.custom-scroll::-webkit-scrollbar) {
+      height: 8px;
+      width: 8px;
+    }
+    :global(.custom-scroll::-webkit-scrollbar-track) {
+      background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.12));
+      border-radius: 999px;
+    }
+    :global(.custom-scroll::-webkit-scrollbar-thumb) {
+      background: linear-gradient(180deg, rgba(165,180,252,0.9), rgba(129,140,248,0.9));
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+    :global(.custom-scroll::-webkit-scrollbar-thumb:hover) {
+      background: linear-gradient(180deg, rgba(199,210,254,1), rgba(165,180,252,1));
+    }
+  </style>
+</div>
