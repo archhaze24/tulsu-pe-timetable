@@ -340,7 +340,7 @@ export namespace storage {
 	
 	export class CreateDirectionRequest {
 	    name: string;
-	    description: string;
+	    address: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CreateDirectionRequest(source);
@@ -349,12 +349,11 @@ export namespace storage {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
-	        this.description = source["description"];
+	        this.address = source["address"];
 	    }
 	}
 	export class CreateFacultyRequest {
 	    name: string;
-	    short_name: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CreateFacultyRequest(source);
@@ -363,15 +362,17 @@ export namespace storage {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
-	        this.short_name = source["short_name"];
 	    }
 	}
 	export class CreateLessonRequest {
-	    faculty_id: number;
-	    direction_id: number;
-	    teacher_id?: number;
+	    semester_id: number;
 	    day_of_week: number;
-	    lesson_number: number;
+	    start_time: string;
+	    end_time: string;
+	    direction_id: number;
+	    teacher_count?: number;
+	    faculty_ids: number[];
+	    teacher_ids: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new CreateLessonRequest(source);
@@ -379,17 +380,21 @@ export namespace storage {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.faculty_id = source["faculty_id"];
-	        this.direction_id = source["direction_id"];
-	        this.teacher_id = source["teacher_id"];
+	        this.semester_id = source["semester_id"];
 	        this.day_of_week = source["day_of_week"];
-	        this.lesson_number = source["lesson_number"];
+	        this.start_time = source["start_time"];
+	        this.end_time = source["end_time"];
+	        this.direction_id = source["direction_id"];
+	        this.teacher_count = source["teacher_count"];
+	        this.faculty_ids = source["faculty_ids"];
+	        this.teacher_ids = source["teacher_ids"];
 	    }
 	}
 	export class CreateTeacherRequest {
-	    last_name: string;
 	    first_name: string;
+	    last_name: string;
 	    middle_name: string;
+	    direction_id: number;
 	    rate: number;
 	
 	    static createFrom(source: any = {}) {
@@ -398,20 +403,17 @@ export namespace storage {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.last_name = source["last_name"];
 	        this.first_name = source["first_name"];
+	        this.last_name = source["last_name"];
 	        this.middle_name = source["middle_name"];
+	        this.direction_id = source["direction_id"];
 	        this.rate = source["rate"];
 	    }
 	}
 	export class Direction {
 	    id: number;
 	    name: string;
-	    description: string;
-	    // Go type: time
-	    created_at: any;
-	    // Go type: time
-	    updated_at: any;
+	    address: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Direction(source);
@@ -421,37 +423,12 @@ export namespace storage {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.description = source["description"];
-	        this.created_at = this.convertValues(source["created_at"], null);
-	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.address = source["address"];
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class Faculty {
 	    id: number;
 	    name: string;
-	    short_name: string;
-	    // Go type: time
-	    created_at: any;
-	    // Go type: time
-	    updated_at: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new Faculty(source);
@@ -461,43 +438,22 @@ export namespace storage {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.short_name = source["short_name"];
-	        this.created_at = this.convertValues(source["created_at"], null);
-	        this.updated_at = this.convertValues(source["updated_at"], null);
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class Lesson {
 	    id: number;
-	    faculty_id: number;
-	    direction_id: number;
-	    teacher_id?: number;
+	    semester_id: number;
 	    day_of_week: number;
-	    lesson_number: number;
-	    // Go type: time
-	    created_at: any;
-	    // Go type: time
-	    updated_at: any;
-	    faculty_name?: string;
+	    start_time: string;
+	    end_time: string;
+	    direction_id: number;
+	    teacher_count?: number;
+	    semester_name?: string;
 	    direction_name?: string;
-	    teacher_name?: string;
+	    faculty_names?: string[];
+	    teacher_names?: string[];
+	    faculty_ids?: number[];
+	    teacher_ids?: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Lesson(source);
@@ -506,46 +462,28 @@ export namespace storage {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.faculty_id = source["faculty_id"];
-	        this.direction_id = source["direction_id"];
-	        this.teacher_id = source["teacher_id"];
+	        this.semester_id = source["semester_id"];
 	        this.day_of_week = source["day_of_week"];
-	        this.lesson_number = source["lesson_number"];
-	        this.created_at = this.convertValues(source["created_at"], null);
-	        this.updated_at = this.convertValues(source["updated_at"], null);
-	        this.faculty_name = source["faculty_name"];
+	        this.start_time = source["start_time"];
+	        this.end_time = source["end_time"];
+	        this.direction_id = source["direction_id"];
+	        this.teacher_count = source["teacher_count"];
+	        this.semester_name = source["semester_name"];
 	        this.direction_name = source["direction_name"];
-	        this.teacher_name = source["teacher_name"];
+	        this.faculty_names = source["faculty_names"];
+	        this.teacher_names = source["teacher_names"];
+	        this.faculty_ids = source["faculty_ids"];
+	        this.teacher_ids = source["teacher_ids"];
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class Teacher {
 	    id: number;
-	    last_name: string;
 	    first_name: string;
+	    last_name: string;
 	    middle_name: string;
+	    direction_id: number;
 	    rate: number;
-	    // Go type: time
-	    created_at: any;
-	    // Go type: time
-	    updated_at: any;
+	    direction_name?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Teacher(source);
@@ -554,36 +492,18 @@ export namespace storage {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.last_name = source["last_name"];
 	        this.first_name = source["first_name"];
+	        this.last_name = source["last_name"];
 	        this.middle_name = source["middle_name"];
+	        this.direction_id = source["direction_id"];
 	        this.rate = source["rate"];
-	        this.created_at = this.convertValues(source["created_at"], null);
-	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.direction_name = source["direction_name"];
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class UpdateDirectionRequest {
 	    id: number;
 	    name: string;
-	    description: string;
+	    address: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new UpdateDirectionRequest(source);
@@ -593,13 +513,12 @@ export namespace storage {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.description = source["description"];
+	        this.address = source["address"];
 	    }
 	}
 	export class UpdateFacultyRequest {
 	    id: number;
 	    name: string;
-	    short_name: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new UpdateFacultyRequest(source);
@@ -609,16 +528,18 @@ export namespace storage {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.short_name = source["short_name"];
 	    }
 	}
 	export class UpdateLessonRequest {
 	    id: number;
-	    faculty_id: number;
-	    direction_id: number;
-	    teacher_id?: number;
+	    semester_id: number;
 	    day_of_week: number;
-	    lesson_number: number;
+	    start_time: string;
+	    end_time: string;
+	    direction_id: number;
+	    teacher_count?: number;
+	    faculty_ids: number[];
+	    teacher_ids: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new UpdateLessonRequest(source);
@@ -627,18 +548,22 @@ export namespace storage {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.faculty_id = source["faculty_id"];
-	        this.direction_id = source["direction_id"];
-	        this.teacher_id = source["teacher_id"];
+	        this.semester_id = source["semester_id"];
 	        this.day_of_week = source["day_of_week"];
-	        this.lesson_number = source["lesson_number"];
+	        this.start_time = source["start_time"];
+	        this.end_time = source["end_time"];
+	        this.direction_id = source["direction_id"];
+	        this.teacher_count = source["teacher_count"];
+	        this.faculty_ids = source["faculty_ids"];
+	        this.teacher_ids = source["teacher_ids"];
 	    }
 	}
 	export class UpdateTeacherRequest {
 	    id: number;
-	    last_name: string;
 	    first_name: string;
+	    last_name: string;
 	    middle_name: string;
+	    direction_id: number;
 	    rate: number;
 	
 	    static createFrom(source: any = {}) {
@@ -648,9 +573,10 @@ export namespace storage {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.last_name = source["last_name"];
 	        this.first_name = source["first_name"];
+	        this.last_name = source["last_name"];
 	        this.middle_name = source["middle_name"];
+	        this.direction_id = source["direction_id"];
 	        this.rate = source["rate"];
 	    }
 	}
