@@ -65,6 +65,11 @@
     alert('Расписание сохранено')
   }
 
+  // Add guest teacher action (stub)
+  function addGuestTeacher() {
+    alert('Добавление гостевого преподавателя будет реализовано')
+  }
+
   // Add time slot popover (anchored to header button)
   type Point = { x: number; y: number }
   let addSlotPopover: Point | null = null
@@ -126,8 +131,10 @@
     const union = Array.from(new Set(
       cellLessons(day, slot).flatMap(l => l.facultyIds)
     ))
-    rowFacultyMap.set(key, union)
-    return union
+    // Filter out ids that don't exist in store to avoid empty chips
+    const valid = union.filter(id => $facultiesStore.some(f => f.id === id))
+    rowFacultyMap.set(key, valid)
+    return valid
   }
   function toggleRowFaculty(day: number, slot: string, facultyId: number) {
     const key = rowKey(day, slot)
@@ -207,6 +214,7 @@
     </div>
     <div class="flex items-center gap-2">
       <button class="rounded-md bg-indigo-600 hover:bg-indigo-500 px-3 py-2 text-xs" on:click={(e) => openAddSlot(e)}>{$t('add_slot')}</button>
+      <button class="rounded-md bg-purple-600 hover:bg-purple-500 px-3 py-2 text-xs" on:click={addGuestTeacher}>{$t('add_guest')}</button>
       <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-xs" on:click={saveSchedule}>{$t('save_schedule')}</button>
       <button class="rounded-md bg-indigo-600 hover:bg-indigo-500 px-3 py-2 text-xs" on:click={exportXLSX}>{$t('export_xlsx')}</button>
     </div>
@@ -240,31 +248,35 @@
   {/if}
 
   <div class="flex-1 overflow-auto custom-scroll">
-    <table class="min-w-full text-sm border-separate w-full" style="border-spacing: 0;">
+    <table class="min-w-full text-sm border-separate w-full" style="border-spacing: 0; table-layout: fixed;">
       <thead>
         <tr>
           <th class="sticky left-0 z-20 bg-slate-900 text-center p-2 border-b border-slate-700 w-12">{$t('day')}</th>
           <th class="sticky left-0 z-20 bg-slate-900 text-center p-2 border-b border-slate-700 w-24">{$t('time')}</th>
-          <th class="p-2 border-b border-slate-700 text-left">{$t('faculty')}</th>
+          <th class="p-2 border-b border-slate-700 text-left w-24">{$t('faculty')}</th>
           {#each $teachersStore as teacher}
-            <th class="p-2 border-b border-slate-700 text-left">
+            <th class="p-2 border-b border-slate-700 text-left w-20">
               <div class="text-xs text-slate-400">{($directionsStore.find(d => d.id === teacher.directionId)?.name) || ''}</div>
-              <div class="flex flex-col gap-1">
-                <div class="font-medium leading-tight">{formatTeacherName(teacher)}</div>
-                {#if rateInfo(teacher.id)}
-                  {#key lessonsVersion + '-' + teacher.id}
-                    <div class="flex items-center gap-2">
-                      <div class="h-1.5 w-24 rounded bg-slate-700 overflow-hidden">
-                        <div class="h-full"
-                          class:bg-emerald-400={rateInfo(teacher.id).remaining === 0}
-                          class:bg-amber-400={rateInfo(teacher.id).remaining < 0}
-                          class:bg-indigo-400={rateInfo(teacher.id).remaining > 0}
-                          style={`width: ${Math.min(100, Math.round((rateInfo(teacher.id).assigned / Math.max(1, rateInfo(teacher.id).target)) * 100))}%`}
-                        />
-                      </div>
-                      <div class="text-[10px] text-slate-400">
+              <div class="flex items-start gap-1">
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium leading-tight text-sm break-words" title={formatTeacherName(teacher)}>{formatTeacherName(teacher)}</div>
+                  {#if rateInfo(teacher.id)}
+                    {#key lessonsVersion + '-' + teacher.id}
+                      <div class="text-[10px] text-slate-400 mt-1">
                         {rateInfo(teacher.id).assigned}/{rateInfo(teacher.id).target}
                       </div>
+                    {/key}
+                  {/if}
+                </div>
+                {#if rateInfo(teacher.id)}
+                  {#key lessonsVersion + '-' + teacher.id}
+                    <div class="w-1.5 h-12 rounded bg-slate-700 overflow-hidden flex-shrink-0 flex flex-col justify-end">
+                      <div class="w-full transition-all duration-200"
+                        class:bg-emerald-400={rateInfo(teacher.id).remaining === 0}
+                        class:bg-amber-400={rateInfo(teacher.id).remaining < 0}
+                        class:bg-indigo-400={rateInfo(teacher.id).remaining > 0}
+                        style={`height: ${Math.min(100, Math.round((rateInfo(teacher.id).assigned / Math.max(1, rateInfo(teacher.id).target)) * 100))}%`}
+                      />
                     </div>
                   {/key}
                 {/if}
@@ -282,18 +294,20 @@
                 <td class="sticky left-0 z-10 bg-slate-900 p-2 border-b border-slate-800 align-top text-center w-12" rowspan={(dayToSlots.get(d.key) || []).length}>{d.label}</td>
               {/if}
               <td class="sticky left-0 z-10 bg-slate-900 p-2 border-b border-slate-800 font-medium text-center w-24">{slot}</td>
-              <td class="p-2 border-b border-slate-800">
+              <td class="p-2 border-b border-slate-800 w-24">
                 {#key rowFacultyVersion + '-' + rowKey(d.key, slot)}
                   <div class="flex flex-wrap gap-1">
                     {#each facultiesForRow(d.key, slot) as fid}
-                      <span class="px-2 py-1 text-[10px] rounded bg-slate-700">{$facultiesStore.find(f => f.id === fid)?.name}</span>
+                      {#if $facultiesStore.find(f => f.id === fid)}
+                        <span class="px-2 py-1 text-[10px] rounded bg-slate-700 truncate max-w-[80px]" title={$facultiesStore.find(f => f.id === fid)?.name}>{$facultiesStore.find(f => f.id === fid)?.name}</span>
+                      {/if}
                     {/each}
                     <button class="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 ring-1 ring-white/10" on:click={(e) => openFacultyPopover(e, d.key, slot)}>+</button>
                   </div>
                 {/key}
               </td>
               {#each $teachersStore as teacher}
-                <td class="p-2 border-b border-slate-800">
+                <td class="p-2 border-b border-slate-800 w-20">
                   {#key lessonsVersion + '-' + cellLessons(d.key, slot).map(l => l.id).join('-')}
                     <button
                       class={cellButtonClasses(!!teacherLesson(d.key, slot, teacher.id))}
@@ -306,7 +320,7 @@
                   {/key}
                 </td>
               {/each}
-              <td class="p-2 border-b border-slate-800 text-right">
+              <td class="p-2 border-b border-slate-800 text-right align-middle">
                 <button class="px-2 py-1 text-xs rounded bg-rose-600/80 hover:bg-rose-600" title={$t('delete')} aria-label={$t('delete')} on:click={() => deleteTimeSlotRow(d.key, slot)}>×</button>
               </td>
             </tr>

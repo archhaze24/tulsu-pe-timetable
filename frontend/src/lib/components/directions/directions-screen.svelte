@@ -25,9 +25,6 @@
       <div class="w-full rounded-lg bg-slate-800/60 px-2 py-2 ring-1 ring-white/10 shadow-sm flex items-center gap-2">
         <button class="flex-1 text-left rounded-md hover:bg-slate-800 active:bg-slate-700 px-3 py-2 transition" on:click={() => open(dir)}>
           <div class="font-medium">{dir.name}</div>
-          {#if dir.address}
-            <div class="text-xs text-slate-300">{dir.address}</div>
-          {/if}
         </button>
         <button class="rounded-md bg-rose-600/90 hover:bg-rose-600 active:bg-rose-700 px-3 py-2 text-xs font-medium transition" on:click={() => askDelete(dir.id)}>
           {$t('delete')}

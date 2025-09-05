@@ -1,40 +1,72 @@
 import { writable } from 'svelte/store'
+import * as App from '../../../wailsjs/go/app_services/App.js'
 
 export interface Direction {
   id: number
   name: string
-  teacherIds: number[]
 }
 
-const initialDirections: Direction[] = [
-  { id: 1, name: 'Футбол', teacherIds: [1, 2] },
-  { id: 2, name: 'Плавание', teacherIds: [3] },
-  { id: 3, name: 'Волейбол', teacherIds: [] }
-]
+export const directionsStore = writable<Direction[]>([])
 
-export const directionsStore = writable<Direction[]>(initialDirections)
-
-export function updateDirection(id: number, changes: Partial<Omit<Direction, 'id'>>) {
-  directionsStore.update(list => list.map(d => (d.id === id ? { ...d, ...changes } : d)))
+function mapDirectionFromBackend(d: any): Direction {
+  return {
+    id: Number(d.id),
+    name: String(d.name)
+  }
 }
 
-export function addDirection(name: string) {
-  directionsStore.update(list => {
-    const nextId = list.length ? Math.max(...list.map(d => d.id)) + 1 : 1
-    return [...list, { id: nextId, name, teacherIds: [] }]
-  })
+export async function refreshDirections(): Promise<void> {
+  try {
+    const resp = await App.GetDirections()
+    if (resp.error) {
+      console.error('GetDirections error:', resp.error)
+      return
+    }
+    const mapped = (resp.data ?? []).map(mapDirectionFromBackend)
+    directionsStore.set(mapped)
+  } catch (e) {
+    console.error('GetDirections failed:', e)
+  }
 }
 
-export function deleteDirection(id: number) {
-  directionsStore.update(list => list.filter(d => d.id !== id))
+export async function updateDirection(id: number, changes: { name: string }): Promise<void> {
+  try {
+    const resp = await App.UpdateDirection({ id, name: changes.name })
+    if (resp.error) {
+      console.error('UpdateDirection error:', resp.error)
+      return
+    }
+    await refreshDirections()
+  } catch (e) {
+    console.error('UpdateDirection failed:', e)
+  }
 }
 
-export function toggleTeacher(directionId: number, teacherId: number) {
-  directionsStore.update(list => list.map(d => {
-    if (d.id !== directionId) return d
-    const exists = d.teacherIds.includes(teacherId)
-    return { ...d, teacherIds: exists ? d.teacherIds.filter(id => id !== teacherId) : [...d.teacherIds, teacherId] }
-  }))
+export async function createDirection(name: string): Promise<void> {
+  try {
+    const resp = await App.CreateDirection({ name })
+    if (resp.error) {
+      console.error('CreateDirection error:', resp.error)
+      return
+    }
+    await refreshDirections()
+  } catch (e) {
+    console.error('CreateDirection failed:', e)
+  }
 }
 
+export async function deleteDirection(id: number): Promise<void> {
+  try {
+    const resp = await App.DeleteDirection(id)
+    if (resp.error) {
+      console.error('DeleteDirection error:', resp.error)
+      return
+    }
+    await refreshDirections()
+  } catch (e) {
+    console.error('DeleteDirection failed:', e)
+  }
+}
+
+void refreshDirections()
 

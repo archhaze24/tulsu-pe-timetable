@@ -17,13 +17,13 @@
     nameDraft = $faculty.name
   }
 
-  const save = () => {
+  const save = async () => {
     const trimmed = nameDraft.trim()
     if (trimmed.length === 0) return
     if ($faculty) {
-      updateFacultyName($faculty.id, trimmed)
+      await updateFacultyName($faculty.id, trimmed)
     } else {
-      addFaculty(trimmed)
+      await addFaculty(trimmed)
     }
     back()
   }

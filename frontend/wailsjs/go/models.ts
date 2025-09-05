@@ -340,7 +340,6 @@ export namespace storage {
 	
 	export class CreateDirectionRequest {
 	    name: string;
-	    address: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CreateDirectionRequest(source);
@@ -349,7 +348,6 @@ export namespace storage {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
-	        this.address = source["address"];
 	    }
 	}
 	export class CreateFacultyRequest {
@@ -413,7 +411,6 @@ export namespace storage {
 	export class Direction {
 	    id: number;
 	    name: string;
-	    address: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Direction(source);
@@ -423,7 +420,6 @@ export namespace storage {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.address = source["address"];
 	    }
 	}
 	export class Faculty {
@@ -503,7 +499,6 @@ export namespace storage {
 	export class UpdateDirectionRequest {
 	    id: number;
 	    name: string;
-	    address: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new UpdateDirectionRequest(source);
@@ -513,7 +508,6 @@ export namespace storage {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.address = source["address"];
 	    }
 	}
 	export class UpdateFacultyRequest {
