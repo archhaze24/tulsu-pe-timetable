@@ -1,8 +1,9 @@
 <script lang="ts">
   import { t } from 'svelte-i18n'
-  import { facultiesStore, type Faculty, deleteFaculty } from '../../stores/faculties'
+  import { facultiesStore, type Faculty, deleteFaculty, refreshFaculties } from '../../stores/faculties'
   import { navigate } from '../../stores/router'
   import ConfirmModal from '../ui/confirm-modal.svelte'
+  import { onMount } from 'svelte'
 
   const openFaculty = (faculty: Faculty) => {
     navigate('faculty_edit', { id: faculty.id })
@@ -15,6 +16,8 @@
   const askDelete = (id: number) => { toDeleteId = id; confirmOpen = true }
   const onConfirm = () => { if (toDeleteId != null) deleteFaculty(toDeleteId); confirmOpen = false; toDeleteId = null }
   const onCancel = () => { confirmOpen = false; toDeleteId = null }
+
+  onMount(() => { refreshFaculties() })
 </script>
 
 <div class="max-w-md w-full px-6 py-10">

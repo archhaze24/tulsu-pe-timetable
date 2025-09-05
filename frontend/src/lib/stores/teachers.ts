@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store'
+import * as App from '../../../wailsjs/go/app_services/App.js'
 
 export interface Teacher {
   id: number
@@ -9,37 +10,101 @@ export interface Teacher {
   rate: number
 }
 
-const initialTeachers: Teacher[] = [
-  { id: 1, firstName: 'Иван', lastName: 'Иванов', middleName: 'Иванович', directionId: 1, rate: 1.0 },
-  { id: 2, firstName: 'Пётр', lastName: 'Петров', middleName: 'Петрович', directionId: 1, rate: 0.5 },
-  { id: 3, firstName: 'Анна', lastName: 'Сидорова', middleName: 'Алексеевна', directionId: 2, rate: 0.75 },
-  { id: 4, firstName: 'Николай', lastName: 'Кузнецов', middleName: 'Николаевич', directionId: 3, rate: 1.0 },
-]
+export const teachersStore = writable<Teacher[]>([])
 
-export const teachersStore = writable<Teacher[]>(initialTeachers)
-
-export function addTeacher(data: Omit<Teacher, 'id'>) {
-  teachersStore.update(list => {
-    const nextId = list.length ? Math.max(...list.map(t => t.id)) + 1 : 1
-    return [...list, { id: nextId, ...data }]
-  })
+function mapTeacherFromBackend(t: any): Teacher {
+  return {
+    id: Number(t.id),
+    firstName: String(t.first_name ?? ''),
+    lastName: String(t.last_name ?? ''),
+    middleName: t.middle_name ? String(t.middle_name) : undefined,
+    directionId: Number(t.direction_id ?? 0),
+    rate: Number(t.rate ?? 0)
+  }
 }
 
-export function updateTeacher(id: number, changes: Partial<Omit<Teacher, 'id'>>) {
-  teachersStore.update(list => list.map(t => (t.id === id ? { ...t, ...changes } : t)))
+export async function refreshTeachers(): Promise<void> {
+  try {
+    const resp = await App.GetTeachers()
+    if (resp.error) {
+      console.error('GetTeachers error:', resp.error)
+      return
+    }
+    const mapped = (resp.data ?? []).map(mapTeacherFromBackend)
+    teachersStore.set(mapped)
+  } catch (e) {
+    console.error('GetTeachers failed:', e)
+  }
 }
 
-export function deleteTeacher(id: number) {
-  teachersStore.update(list => list.filter(t => t.id !== id))
+export async function addTeacher(data: Omit<Teacher, 'id'>): Promise<void> {
+  try {
+    const resp = await App.CreateTeacher({
+      first_name: data.firstName,
+      last_name: data.lastName,
+      middle_name: data.middleName ?? '',
+      direction_id: data.directionId,
+      rate: data.rate
+    })
+    if (resp.error) {
+      console.error('CreateTeacher error:', resp.error)
+      return
+    }
+    await refreshTeachers()
+  } catch (e) {
+    console.error('CreateTeacher failed:', e)
+  }
+}
+
+export async function updateTeacher(id: number, changes: Partial<Omit<Teacher, 'id'>>): Promise<void> {
+  try {
+    // Read the current teacher to merge changes for required fields
+    let current: Teacher | undefined
+    teachersStore.update(list => {
+      current = list.find(t => t.id === id)
+      return list
+    })
+    if (!current) return
+    const payload = {
+      id,
+      first_name: changes.firstName ?? current.firstName,
+      last_name: changes.lastName ?? current.lastName,
+      middle_name: (changes.middleName ?? current.middleName ?? ''),
+      direction_id: changes.directionId ?? current.directionId,
+      rate: changes.rate ?? current.rate
+    }
+    const resp = await App.UpdateTeacher(payload)
+    if (resp.error) {
+      console.error('UpdateTeacher error:', resp.error)
+      return
+    }
+    await refreshTeachers()
+  } catch (e) {
+    console.error('UpdateTeacher failed:', e)
+  }
+}
+
+export async function deleteTeacher(id: number): Promise<void> {
+  try {
+    const resp = await App.DeleteTeacher(id)
+    if (resp.error) {
+      console.error('DeleteTeacher error:', resp.error)
+      return
+    }
+    await refreshTeachers()
+  } catch (e) {
+    console.error('DeleteTeacher failed:', e)
+  }
 }
 
 export function formatTeacherName(t: Teacher): string {
   const initials = [t.firstName, t.middleName]
     .filter(Boolean)
-    .map(n => (n ? `${n[0]}.` : ''))
+    .map(n => (n ? `${(n as string)[0]}.` : ''))
     .join(' ')
     .trim()
   return initials ? `${t.lastName} ${initials}` : t.lastName
 }
 
+void refreshTeachers()
 

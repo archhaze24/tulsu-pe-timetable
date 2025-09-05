@@ -31,7 +31,7 @@
       directionId: Number(directionId),
       rate: Number(rate)
     }
-    if (!data.firstName || !data.lastName || !data.directionId || !data.rate) return
+    if (!data.firstName || !data.lastName || !data.rate) return
     if ($teacher) {
       updateTeacher($teacher.id, data)
     } else {
@@ -73,7 +73,7 @@
   <label class="block text-sm mb-2 mt-4 text-slate-300" for="t-direction">{$t('teacher_direction')}</label>
   <div class="relative">
     <select id="t-direction" class="w-full appearance-none rounded-lg bg-slate-900/60 focus:bg-slate-900 px-4 pr-10 py-2 ring-1 ring-white/10 focus:ring-2 focus:ring-emerald-500/40 outline-none text-slate-100" bind:value={directionId}>
-      <option value="0" disabled>{$t('select_direction')}</option>
+      <option value="0">{$t('no_direction')}</option>
       {#each $directionsStore as dir}
         <option class="bg-slate-900 text-slate-100" value={dir.id}>{dir.name}</option>
       {/each}

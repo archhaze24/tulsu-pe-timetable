@@ -19,9 +19,7 @@
   "edit_direction": "Редактирование направления",
   "create_direction": "Создать направление",
   "direction_name": "Название направления",
-  "direction_address": "Адрес",
   "direction_name_placeholder": "Введите название",
-  "direction_address_placeholder": "Введите адрес",
   "assign_teachers": "Привязка преподавателей",
   "search_placeholder": "Поиск",
   "assigned": "Назначен",
@@ -35,6 +33,7 @@
   "teacher_middle_name_placeholder": "Введите отчество",
   "teacher_direction": "Направление",
   "select_direction": "Выберите направление",
+  "no_direction": "Без направления",
   "teacher_rate": "Ставка",
   "increase": "Увеличить",
   "decrease": "Уменьшить",
@@ -75,7 +74,8 @@
   "start_time": "Начало",
   "end_time": "Конец",
   "close": "Закрыть",
-  "slot_exists": "Такой интервал уже существует"
+  "slot_exists": "Такой интервал уже существует",
+  "add_guest": "Добавить гостя"
 }
 
 
