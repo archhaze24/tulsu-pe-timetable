@@ -10,9 +10,9 @@ import (
 
 // App struct
 type App struct {
-	ctx      context.Context
-	config   *config.Config
-	storage  *storage.Storage
+	ctx     context.Context
+	config  *config.Config
+	storage *storage.Storage
 }
 
 // NewApp creates a new App application struct
@@ -22,7 +22,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
-	
+
 	return &App{
 		config:  cfg,
 		storage: storage,
@@ -64,10 +64,10 @@ func (a *App) UpdateConfig(newConfig *config.Config) ApiResponse[bool] {
 			Error: fmt.Sprintf("%s: %v", locales.GetMessage("errors.config.save_failed"), err),
 		}
 	}
-	
+
 	// Обновляем конфигурацию в состоянии
 	a.config = newConfig
-	
+
 	return ApiResponse[bool]{
 		Data:  true,
 		Error: "",
@@ -83,7 +83,7 @@ func (a *App) GetConfigPath() ApiResponse[string] {
 			Error: fmt.Sprintf("%s: %v", locales.GetMessage("errors.config.path_failed"), err),
 		}
 	}
-	
+
 	return ApiResponse[string]{
 		Data:  path,
 		Error: "",
@@ -101,7 +101,7 @@ func (a *App) CreateDirection(req storage.CreateDirectionRequest) ApiResponse[*s
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[*storage.Direction]{
 		Data:  direction,
 		Error: "",
@@ -117,7 +117,7 @@ func (a *App) GetDirections() ApiResponse[[]storage.Direction] {
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[[]storage.Direction]{
 		Data:  directions,
 		Error: "",
@@ -133,7 +133,7 @@ func (a *App) UpdateDirection(req storage.UpdateDirectionRequest) ApiResponse[*s
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[*storage.Direction]{
 		Data:  direction,
 		Error: "",
@@ -149,7 +149,7 @@ func (a *App) DeleteDirection(id int64) ApiResponse[bool] {
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[bool]{
 		Data:  true,
 		Error: "",
@@ -167,7 +167,7 @@ func (a *App) CreateFaculty(req storage.CreateFacultyRequest) ApiResponse[*stora
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[*storage.Faculty]{
 		Data:  faculty,
 		Error: "",
@@ -183,7 +183,7 @@ func (a *App) GetFaculties() ApiResponse[[]storage.Faculty] {
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[[]storage.Faculty]{
 		Data:  faculties,
 		Error: "",
@@ -199,7 +199,7 @@ func (a *App) UpdateFaculty(req storage.UpdateFacultyRequest) ApiResponse[*stora
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[*storage.Faculty]{
 		Data:  faculty,
 		Error: "",
@@ -215,7 +215,7 @@ func (a *App) DeleteFaculty(id int64) ApiResponse[bool] {
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[bool]{
 		Data:  true,
 		Error: "",
@@ -233,7 +233,7 @@ func (a *App) CreateTeacher(req storage.CreateTeacherRequest) ApiResponse[*stora
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[*storage.Teacher]{
 		Data:  teacher,
 		Error: "",
@@ -249,7 +249,7 @@ func (a *App) GetTeachers() ApiResponse[[]storage.Teacher] {
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[[]storage.Teacher]{
 		Data:  teachers,
 		Error: "",
@@ -265,7 +265,7 @@ func (a *App) UpdateTeacher(req storage.UpdateTeacherRequest) ApiResponse[*stora
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[*storage.Teacher]{
 		Data:  teacher,
 		Error: "",
@@ -281,7 +281,7 @@ func (a *App) DeleteTeacher(id int64) ApiResponse[bool] {
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[bool]{
 		Data:  true,
 		Error: "",
@@ -299,9 +299,73 @@ func (a *App) CreateLesson(req storage.CreateLessonRequest) ApiResponse[*storage
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[*storage.Lesson]{
 		Data:  lesson,
+		Error: "",
+	}
+}
+
+// ===== Semesters API =====
+
+// CreateSemester создает новый семестр
+func (a *App) CreateSemester(req storage.CreateSemesterRequest) ApiResponse[*storage.Semester] {
+	semester, err := a.storage.Semesters.Create(req)
+	if err != nil {
+		return ApiResponse[*storage.Semester]{
+			Data:  nil,
+			Error: err.Error(),
+		}
+	}
+
+	return ApiResponse[*storage.Semester]{
+		Data:  semester,
+		Error: "",
+	}
+}
+
+// GetSemesters получает все семестры
+func (a *App) GetSemesters() ApiResponse[[]storage.Semester] {
+	semesters, err := a.storage.Semesters.GetAll()
+	if err != nil {
+		return ApiResponse[[]storage.Semester]{
+			Data:  nil,
+			Error: err.Error(),
+		}
+	}
+
+	return ApiResponse[[]storage.Semester]{
+		Data:  semesters,
+		Error: "",
+	}
+}
+
+// UpdateSemester обновляет семестр
+func (a *App) UpdateSemester(req storage.UpdateSemesterRequest) ApiResponse[*storage.Semester] {
+	semester, err := a.storage.Semesters.Update(req)
+	if err != nil {
+		return ApiResponse[*storage.Semester]{
+			Data:  nil,
+			Error: err.Error(),
+		}
+	}
+
+	return ApiResponse[*storage.Semester]{
+		Data:  semester,
+		Error: "",
+	}
+}
+
+// DeleteSemester удаляет семестр
+func (a *App) DeleteSemester(id int64) ApiResponse[bool] {
+	if err := a.storage.Semesters.Delete(id); err != nil {
+		return ApiResponse[bool]{
+			Data:  false,
+			Error: err.Error(),
+		}
+	}
+	return ApiResponse[bool]{
+		Data:  true,
 		Error: "",
 	}
 }
@@ -315,7 +379,7 @@ func (a *App) GetLessons() ApiResponse[[]storage.Lesson] {
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[[]storage.Lesson]{
 		Data:  lessons,
 		Error: "",
@@ -331,7 +395,7 @@ func (a *App) UpdateLesson(req storage.UpdateLessonRequest) ApiResponse[*storage
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[*storage.Lesson]{
 		Data:  lesson,
 		Error: "",
@@ -347,7 +411,7 @@ func (a *App) DeleteLesson(id int64) ApiResponse[bool] {
 			Error: err.Error(),
 		}
 	}
-	
+
 	return ApiResponse[bool]{
 		Data:  true,
 		Error: "",
