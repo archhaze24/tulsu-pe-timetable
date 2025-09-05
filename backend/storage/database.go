@@ -70,6 +70,7 @@ func (d *Database) initTables() error {
 		createLessonsTable,
 		createLessonFacultiesTable,
 		createLessonTeachersTable,
+		createSemesterTeachersTable,
 	}
 
 	for _, tableSQL := range tables {
@@ -91,8 +92,7 @@ const (
 	createDirectionsTable = `
 	CREATE TABLE IF NOT EXISTS directions (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		address TEXT
+		name TEXT NOT NULL
 	);`
 
 	createFacultiesTable = `
@@ -106,6 +106,8 @@ const (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		first_name TEXT NOT NULL,
 		last_name TEXT NOT NULL,
+		isArchived BOOLEAN NOT NULL DEFAULT FALSE,
+		isGuest BOOLEAN NOT NULL DEFAULT FALSE,
 		middle_name TEXT,
 		direction_id INTEGER NOT NULL,
 		rate REAL NOT NULL,
@@ -148,6 +150,15 @@ const (
 		teacher_id INTEGER NOT NULL,
 		PRIMARY KEY (lesson_id, teacher_id),
 		FOREIGN KEY (lesson_id) REFERENCES lessons (id),
+		FOREIGN KEY (teacher_id) REFERENCES teachers (id)
+	);`
+
+	createSemesterTeachersTable = `
+	CREATE TABLE IF NOT EXISTS semester_teachers (
+		semester_id INTEGER NOT NULL,
+		teacher_id INTEGER NOT NULL,
+		PRIMARY KEY (semester_id, teacher_id),
+		FOREIGN KEY (semester_id) REFERENCES semesters (id),
 		FOREIGN KEY (teacher_id) REFERENCES teachers (id)
 	);`
 )
