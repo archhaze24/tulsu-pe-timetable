@@ -10,8 +10,10 @@
   import SemestersScreen from './lib/components/schedule/semesters-screen.svelte'
   import SemesterEdit from './lib/components/schedule/semester-edit.svelte'
   import ScheduleScreen from './lib/components/schedule/schedule-screen.svelte'
-  import {GetConfig, GetConfigPath} from '../wailsjs/go/app_services/App.js'
+  import {GetConfig} from '../wailsjs/go/app_services/App.js'
   import type {config} from '../wailsjs/go/models'
+  import { theme, setTheme, toggleTheme } from './lib/stores/theme'
+  import { UpdateConfig } from '../wailsjs/go/app_services/App.js'
 
   // Инициализация конфигурации при старте приложения
   let configData: config.Config | null = null
@@ -35,9 +37,46 @@
 
   // Вспомогательное значение для передачи id семестра в редактор
   $: routeSemesterId = Number(($route.params as any)?.id ?? 0)
+
+  // Применяем тему: инициализируем стор из конфига и следим за изменениями
+  $: if (configData?.theme) setTheme(configData.theme as any)
+  $: {
+    const htmlEl = typeof document !== 'undefined' ? document.documentElement : null
+    if (!htmlEl) {}
+    else {
+      $theme === 'dark' ? htmlEl.classList.add('dark') : htmlEl.classList.remove('dark')
+    }
+  }
+
+  async function onToggleTheme(): Promise<void> {
+    const next = $theme === 'dark' ? 'light' : 'dark'
+    setTheme(next as any)
+    // Сохраняем в конфиг
+    const cfg: config.Config = { dbPath: configData?.dbPath || '', theme: next }
+    configData = cfg
+    const res = await UpdateConfig(cfg)
+    if (res && res.error) {
+      // откат в случае ошибки
+      const prev = next === 'dark' ? 'light' : 'dark'
+      setTheme(prev as any)
+      configData = { dbPath: cfg.dbPath, theme: prev } as config.Config
+      console.error('Ошибка сохранения темы:', res.error)
+    }
+  }
 </script>
 
-<main class="min-h-screen bg-slate-900 text-slate-50 font-sans { $route.name === 'schedule' ? '' : 'flex items-center justify-center' }">
+<main class="min-h-screen bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-50 font-sans { $route.name === 'schedule' ? '' : 'flex items-center justify-center' }">
+  {#if $route.name === 'home'}
+    <!-- Кнопка переключения темы только на главной -->
+    <button class="fixed top-2 right-3 z-50 rounded-md px-3 py-1.5 text-base transition hover:opacity-80 bg-white/70 dark:bg-slate-800/60 ring-1 ring-black/10 dark:ring-white/10 backdrop-blur"
+      title={$theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} aria-label={$theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} on:click={onToggleTheme}>
+      {#if $theme === 'dark'}
+        ☀️
+      {:else}
+        🌙
+      {/if}
+    </button>
+  {/if}
   {#if $route.name === 'home'}
     <HomeScreen {configData} />
   {:else if $route.name === 'faculties'}

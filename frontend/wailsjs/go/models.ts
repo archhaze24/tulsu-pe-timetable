@@ -323,6 +323,7 @@ export namespace config {
 	
 	export class Config {
 	    dbPath: string;
+	    theme: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -331,6 +332,7 @@ export namespace config {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.dbPath = source["dbPath"];
+	        this.theme = source["theme"];
 	    }
 	}
 
