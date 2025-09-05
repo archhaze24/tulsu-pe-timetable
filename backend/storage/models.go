@@ -2,9 +2,8 @@ package storage
 
 // Direction представляет направление (футбол, плавание и т.д.)
 type Direction struct {
-	ID      int64  `json:"id"`
-	Name    string `json:"name"`
-	Address string `json:"address"`
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 // Faculty представляет факультет
@@ -57,15 +56,13 @@ type Lesson struct {
 
 // CreateDirectionRequest запрос на создание направления
 type CreateDirectionRequest struct {
-	Name    string `json:"name"`
-	Address string `json:"address"`
+	Name string `json:"name"`
 }
 
 // UpdateDirectionRequest запрос на обновление направления
 type UpdateDirectionRequest struct {
-	ID      int64  `json:"id"`
-	Name    string `json:"name"`
-	Address string `json:"address"`
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 // CreateFacultyRequest запрос на создание факультета

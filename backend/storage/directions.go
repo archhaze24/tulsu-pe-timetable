@@ -19,11 +19,11 @@ func NewDirectionsRepository(db *sql.DB) *DirectionsRepository {
 // Create создает новое направление
 func (r *DirectionsRepository) Create(req CreateDirectionRequest) (*Direction, error) {
 	query := `
-		INSERT INTO directions (name, address)
-		VALUES (?, ?)
+		INSERT INTO directions (name)
+		VALUES (?)
 	`
 
-	result, err := r.db.Exec(query, req.Name, req.Address)
+	result, err := r.db.Exec(query, req.Name)
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.directions.create_failed")+": %w", err)
 	}
@@ -34,16 +34,15 @@ func (r *DirectionsRepository) Create(req CreateDirectionRequest) (*Direction, e
 	}
 
 	return &Direction{
-		ID:      id,
-		Name:    req.Name,
-		Address: req.Address,
+		ID:   id,
+		Name: req.Name,
 	}, nil
 }
 
 // GetByID получает направление по ID
 func (r *DirectionsRepository) GetByID(id int64) (*Direction, error) {
 	query := `
-		SELECT id, name, address
+		SELECT id, name
 		FROM directions
 		WHERE id = ?
 	`
@@ -52,7 +51,6 @@ func (r *DirectionsRepository) GetByID(id int64) (*Direction, error) {
 	err := r.db.QueryRow(query, id).Scan(
 		&direction.ID,
 		&direction.Name,
-		&direction.Address,
 	)
 
 	if err != nil {
@@ -68,7 +66,7 @@ func (r *DirectionsRepository) GetByID(id int64) (*Direction, error) {
 // GetAll получает все направления
 func (r *DirectionsRepository) GetAll() ([]Direction, error) {
 	query := `
-		SELECT id, name, address
+		SELECT id, name
 		FROM directions
 		ORDER BY name
 	`
@@ -85,7 +83,6 @@ func (r *DirectionsRepository) GetAll() ([]Direction, error) {
 		err := rows.Scan(
 			&direction.ID,
 			&direction.Name,
-			&direction.Address,
 		)
 		if err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.directions.scan_failed")+": %w", err)
@@ -104,11 +101,11 @@ func (r *DirectionsRepository) GetAll() ([]Direction, error) {
 func (r *DirectionsRepository) Update(req UpdateDirectionRequest) (*Direction, error) {
 	query := `
 		UPDATE directions
-		SET name = ?, address = ?
+		SET name = ?
 		WHERE id = ?
 	`
 
-	result, err := r.db.Exec(query, req.Name, req.Address, req.ID)
+	result, err := r.db.Exec(query, req.Name, req.ID)
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.directions.update_failed")+": %w", err)
 	}
@@ -123,9 +120,8 @@ func (r *DirectionsRepository) Update(req UpdateDirectionRequest) (*Direction, e
 	}
 
 	return &Direction{
-		ID:      req.ID,
-		Name:    req.Name,
-		Address: req.Address,
+		ID:   req.ID,
+		Name: req.Name,
 	}, nil
 }
 
