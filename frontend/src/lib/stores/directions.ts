@@ -3,14 +3,13 @@ import { writable } from 'svelte/store'
 export interface Direction {
   id: number
   name: string
-  address?: string
   teacherIds: number[]
 }
 
 const initialDirections: Direction[] = [
-  { id: 1, name: 'Футбол', address: 'Стадион №1', teacherIds: [1, 2] },
-  { id: 2, name: 'Плавание', address: 'Бассейн северный', teacherIds: [3] },
-  { id: 3, name: 'Волейбол', address: 'Зал А', teacherIds: [] }
+  { id: 1, name: 'Футбол', teacherIds: [1, 2] },
+  { id: 2, name: 'Плавание', teacherIds: [3] },
+  { id: 3, name: 'Волейбол', teacherIds: [] }
 ]
 
 export const directionsStore = writable<Direction[]>(initialDirections)
@@ -19,10 +18,10 @@ export function updateDirection(id: number, changes: Partial<Omit<Direction, 'id
   directionsStore.update(list => list.map(d => (d.id === id ? { ...d, ...changes } : d)))
 }
 
-export function addDirection(name: string, address?: string) {
+export function addDirection(name: string) {
   directionsStore.update(list => {
     const nextId = list.length ? Math.max(...list.map(d => d.id)) + 1 : 1
-    return [...list, { id: nextId, name, address, teacherIds: [] }]
+    return [...list, { id: nextId, name, teacherIds: [] }]
   })
 }
 

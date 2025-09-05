@@ -200,9 +200,6 @@ func (d *Database) migrateSchema() error {
 	}
 
 	plans := []addColumnPlan{
-		// directions.address используется в CRUD запросах
-		{table: "directions", column: "address", ddl: "ALTER TABLE directions ADD COLUMN address TEXT DEFAULT ''"},
-
 		// teachers.middle_name сканируется в string
 		{table: "teachers", column: "middle_name", ddl: "ALTER TABLE teachers ADD COLUMN middle_name TEXT DEFAULT ''"},
 
@@ -228,16 +225,7 @@ func (d *Database) migrateSchema() error {
 		}
 	}
 
-	// Нормализуем NULL → '' для текстовых столбцов, которые мы сканируем в string
-	// directions.address
-	if exists, err := columnExists(d.db, "directions", "address"); err != nil {
-		return fmt.Errorf("не удалось проверить столбец directions.address: %w", err)
-	} else if exists {
-		if _, err := d.db.Exec("UPDATE directions SET address = '' WHERE address IS NULL"); err != nil {
-			return fmt.Errorf("не удалось нормализовать NULL в directions.address: %w", err)
-		}
-	}
-
+	// Нормализация текстовых NULL → ''
 	// teachers.middle_name
 	if exists, err := columnExists(d.db, "teachers", "middle_name"); err != nil {
 		return fmt.Errorf("не удалось проверить столбец teachers.middle_name: %w", err)
