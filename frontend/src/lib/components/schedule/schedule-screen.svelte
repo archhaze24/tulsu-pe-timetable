@@ -179,8 +179,10 @@
   }
 
   function cellButtonClasses(assigned: boolean): string {
-    const base = 'w-full h-8 rounded-md ring-1 ring-white/10 text-center text-xs transition cursor-pointer select-none flex items-center justify-center '
-    return assigned ? base + 'bg-slate-800/60 hover:bg-slate-800 text-slate-100' : base + 'bg-slate-900 hover:bg-slate-800 text-transparent'
+    const base = 'w-full h-8 rounded-md text-center text-xs transition cursor-pointer select-none flex items-center justify-center ring-1 ring-black/5 dark:ring-white/10 '
+    return assigned
+      ? base + 'bg-indigo-100 hover:bg-indigo-200 text-indigo-900 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:text-slate-100'
+      : base + 'bg-slate-100 hover:bg-slate-200 text-transparent dark:bg-slate-900 dark:hover:bg-slate-800'
   }
 
   // Force re-render for lessons changes so "+" and rates update instantly
@@ -207,41 +209,41 @@
 <div class="w-full h-screen flex flex-col px-4 py-4">
   <div class="flex items-center justify-between mb-4">
     <div class="flex items-center gap-3">
-      <button class="text-slate-300 hover:text-white text-sm" on:click={back}>← {$t('back')}</button>
+      <button class="text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-white text-sm" on:click={back}>← {$t('back')}</button>
       {#if semester}
         <h2 class="text-2xl font-semibold">{semester.name}</h2>
       {/if}
     </div>
     <div class="flex items-center gap-2">
-      <button class="rounded-md bg-indigo-600 hover:bg-indigo-500 px-3 py-2 text-xs" on:click={(e) => openAddSlot(e)}>{$t('add_slot')}</button>
-      <button class="rounded-md bg-purple-600 hover:bg-purple-500 px-3 py-2 text-xs" on:click={addGuestTeacher}>{$t('add_guest')}</button>
-      <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-xs" on:click={saveSchedule}>{$t('save_schedule')}</button>
-      <button class="rounded-md bg-indigo-600 hover:bg-indigo-500 px-3 py-2 text-xs" on:click={exportXLSX}>{$t('export_xlsx')}</button>
+      <button class="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 text-xs" on:click={(e) => openAddSlot(e)}>{$t('add_slot')}</button>
+      <button class="rounded-md bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 text-xs" on:click={addGuestTeacher}>{$t('add_guest')}</button>
+      <button class="rounded-md bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white px-3 py-2 text-xs" on:click={saveSchedule}>{$t('save_schedule')}</button>
+      <button class="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 text-xs" on:click={exportXLSX}>{$t('export_xlsx')}</button>
     </div>
   </div>
 
   {#if addSlotPopover}
-    <div class="fixed z-30 w-[360px] rounded-lg bg-slate-900 ring-1 ring-white/10 p-4 shadow-xl" style={`left:${addSlotPopover.x}px; top:${addSlotPopover.y}px`} role="dialog" aria-modal="true">
-      <div class="text-sm text-slate-300 mb-2">{$t('add_slot')}</div>
+    <div class="fixed z-30 w-[360px] rounded-lg bg-white dark:bg-slate-900 ring-1 ring-black/10 dark:ring-white/10 p-4 shadow-xl" style={`left:${addSlotPopover.x}px; top:${addSlotPopover.y}px`} role="dialog" aria-modal="true">
+      <div class="text-sm text-slate-700 dark:text-slate-300 mb-2">{$t('add_slot')}</div>
       <div class="grid gap-3 text-sm">
         <div class="flex items-center gap-2">
-          <div class="text-slate-400 w-24">{$t('select_day')}</div>
+          <div class="text-slate-500 dark:text-slate-400 w-24">{$t('select_day')}</div>
           <div class="flex flex-wrap items-center gap-1 min-w-0">
             {#each days as d}
-              <button class="px-1.5 py-1 text-xs rounded-md ring-1 ring-white/10 transition {addSlotDay === d.key ? 'bg-indigo-600' : 'bg-slate-800 hover:bg-slate-700'}" on:click={() => addSlotDay = d.key}>{d.label}</button>
+              <button class="px-1.5 py-1 text-xs rounded-md ring-1 ring-black/10 dark:ring-white/10 transition {addSlotDay === d.key ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700'}" on:click={() => addSlotDay = d.key}>{d.label}</button>
             {/each}
           </div>
         </div>
         <div class="grid grid-cols-[max-content_1fr_max-content] grid-rows-2 gap-x-4 items-center min-w-0">
-          <div class="text-slate-400 text-xs col-start-1 row-start-1">{$t('start_time')}</div>
-          <div class="text-slate-400 text-xs col-start-3 row-start-1">{$t('end_time')}</div>
-          <input class="w-24 rounded bg-slate-800 px-2 py-1 ring-1 ring-white/10 col-start-1 row-start-2" bind:value={addSlotStart} />
+          <div class="text-slate-500 dark:text-slate-400 text-xs col-start-1 row-start-1">{$t('start_time')}</div>
+          <div class="text-slate-500 dark:text-slate-400 text-xs col-start-3 row-start-1">{$t('end_time')}</div>
+          <input class="w-24 rounded bg-white dark:bg-slate-800 px-2 py-1 ring-1 ring-slate-300 dark:ring-white/10 col-start-1 row-start-2" bind:value={addSlotStart} />
           <div class="text-slate-400 text-center col-start-2 row-start-2 justify-self-center">—</div>
-          <input class="w-24 rounded bg-slate-800 px-2 py-1 ring-1 ring-white/10 col-start-3 row-start-2" bind:value={addSlotEnd} />
+          <input class="w-24 rounded bg-white dark:bg-slate-800 px-2 py-1 ring-1 ring-slate-300 dark:ring-white/10 col-start-3 row-start-2" bind:value={addSlotEnd} />
         </div>
         <div class="flex items-center justify-end gap-2 mt-1">
-          <button class="rounded-md bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs" on:click={closeAddSlot}>{$t('cancel')}</button>
-          <button class="rounded-md bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs" on:click={createTimeSlot}>{$t('create')}</button>
+          <button class="rounded-md bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 px-3 py-1.5 text-xs" on:click={closeAddSlot}>{$t('cancel')}</button>
+          <button class="rounded-md bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white px-3 py-1.5 text-xs" on:click={createTimeSlot}>{$t('create')}</button>
         </div>
       </div>
     </div>
@@ -251,18 +253,18 @@
     <table class="min-w-full text-sm border-separate w-full" style="border-spacing: 0; table-layout: fixed;">
       <thead>
         <tr>
-          <th class="sticky left-0 z-20 bg-slate-900 text-center p-2 border-b border-slate-700 w-12">{$t('day')}</th>
-          <th class="sticky left-0 z-20 bg-slate-900 text-center p-2 border-b border-slate-700 w-24">{$t('time')}</th>
-          <th class="p-2 border-b border-slate-700 text-left w-24">{$t('faculty')}</th>
+          <th class="sticky left-0 z-20 bg-white dark:bg-slate-900 text-center p-2 border-b border-slate-200 dark:border-slate-700 w-12">{$t('day')}</th>
+          <th class="sticky left-0 z-20 bg-white dark:bg-slate-900 text-center p-2 border-b border-slate-200 dark:border-slate-700 w-24">{$t('time')}</th>
+          <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-left w-24">{$t('faculty')}</th>
           {#each $teachersStore as teacher}
-            <th class="p-2 border-b border-slate-700 text-left w-20">
-              <div class="text-xs text-slate-400">{($directionsStore.find(d => d.id === teacher.directionId)?.name) || ''}</div>
+            <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-left w-20">
+              <div class="text-xs text-slate-500 dark:text-slate-400">{($directionsStore.find(d => d.id === teacher.directionId)?.name) || ''}</div>
               <div class="flex items-start gap-1">
                 <div class="flex-1 min-w-0">
                   <div class="font-medium leading-tight text-sm break-words" title={formatTeacherName(teacher)}>{formatTeacherName(teacher)}</div>
                   {#if rateInfo(teacher.id)}
                     {#key lessonsVersion + '-' + teacher.id}
-                      <div class="text-[10px] text-slate-400 mt-1">
+                      <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                         {rateInfo(teacher.id).assigned}/{rateInfo(teacher.id).target}
                       </div>
                     {/key}
@@ -270,11 +272,11 @@
                 </div>
                 {#if rateInfo(teacher.id)}
                   {#key lessonsVersion + '-' + teacher.id}
-                    <div class="w-1.5 h-12 rounded bg-slate-700 overflow-hidden flex-shrink-0 flex flex-col justify-end">
+                    <div class="w-1.5 h-12 rounded bg-slate-300 dark:bg-slate-700 overflow-hidden flex-shrink-0 flex flex-col justify-end">
                       <div class="w-full transition-all duration-200"
                         class:bg-emerald-400={rateInfo(teacher.id).remaining === 0}
                         class:bg-amber-400={rateInfo(teacher.id).remaining < 0}
-                        class:bg-indigo-400={rateInfo(teacher.id).remaining > 0}
+                        class:bg-indigo-500={rateInfo(teacher.id).remaining > 0}
                         style={`height: ${Math.min(100, Math.round((rateInfo(teacher.id).assigned / Math.max(1, rateInfo(teacher.id).target)) * 100))}%`}
                       />
                     </div>
@@ -283,7 +285,7 @@
               </div>
             </th>
           {/each}
-          <th class="p-2 border-b border-slate-700 text-right w-14"></th>
+          <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-right w-14"></th>
         </tr>
       </thead>
       <tbody>
@@ -291,23 +293,23 @@
           {#each (dayToSlots.get(d.key) || []) as slot, i}
             <tr class="align-top">
               {#if i === 0}
-                <td class="sticky left-0 z-10 bg-slate-900 p-2 border-b border-slate-800 align-top text-center w-12" rowspan={(dayToSlots.get(d.key) || []).length}>{d.label}</td>
+                <td class="sticky left-0 z-10 bg-white dark:bg-slate-900 p-2 border-b border-slate-200 dark:border-slate-800 align-top text-center w-12" rowspan={(dayToSlots.get(d.key) || []).length}>{d.label}</td>
               {/if}
-              <td class="sticky left-0 z-10 bg-slate-900 p-2 border-b border-slate-800 font-medium text-center w-24">{slot}</td>
-              <td class="p-2 border-b border-slate-800 w-24">
+              <td class="sticky left-0 z-10 bg-white dark:bg-slate-900 p-2 border-b border-slate-200 dark:border-slate-800 font-medium text-center w-24">{slot}</td>
+              <td class="p-2 border-b border-slate-200 dark:border-slate-800 w-24">
                 {#key rowFacultyVersion + '-' + rowKey(d.key, slot)}
                   <div class="flex flex-wrap gap-1">
                     {#each facultiesForRow(d.key, slot) as fid}
                       {#if $facultiesStore.find(f => f.id === fid)}
-                        <span class="px-2 py-1 text-[10px] rounded bg-slate-700 truncate max-w-[80px]" title={$facultiesStore.find(f => f.id === fid)?.name}>{$facultiesStore.find(f => f.id === fid)?.name}</span>
+                        <span class="px-2 py-1 text-[10px] rounded bg-slate-200 dark:bg-slate-700 truncate max-w-[80px]" title={$facultiesStore.find(f => f.id === fid)?.name}>{$facultiesStore.find(f => f.id === fid)?.name}</span>
                       {/if}
                     {/each}
-                    <button class="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 ring-1 ring-white/10" on:click={(e) => openFacultyPopover(e, d.key, slot)}>+</button>
+                    <button class="px-2 py-1 text-xs rounded bg-slate-100 hover:bg-slate-200 ring-1 ring-black/10 dark:bg-slate-800 dark:hover:bg-slate-700 dark:ring-white/10" on:click={(e) => openFacultyPopover(e, d.key, slot)}>+</button>
                   </div>
                 {/key}
               </td>
               {#each $teachersStore as teacher}
-                <td class="p-2 border-b border-slate-800 w-20">
+                <td class="p-2 border-b border-slate-200 dark:border-slate-800 w-20">
                   {#key lessonsVersion + '-' + cellLessons(d.key, slot).map(l => l.id).join('-')}
                     <button
                       class={cellButtonClasses(!!teacherLesson(d.key, slot, teacher.id))}
@@ -320,8 +322,8 @@
                   {/key}
                 </td>
               {/each}
-              <td class="p-2 border-b border-slate-800 text-right align-middle">
-                <button class="px-2 py-1 text-xs rounded bg-rose-600/80 hover:bg-rose-600" title={$t('delete')} aria-label={$t('delete')} on:click={() => deleteTimeSlotRow(d.key, slot)}>×</button>
+              <td class="p-2 border-b border-slate-200 dark:border-slate-800 text-right align-middle">
+                <button class="px-2 py-1 text-xs rounded bg-rose-600/90 hover:bg-rose-600 text-white" title={$t('delete')} aria-label={$t('delete')} on:click={() => deleteTimeSlotRow(d.key, slot)}>×</button>
               </td>
             </tr>
           {/each}
@@ -330,20 +332,20 @@
     </table>
   </div>
   {#if facultyPopover}
-    <div class="fixed z-30 w-[360px] rounded-lg bg-slate-900 ring-1 ring-white/10 p-3 shadow-xl" style={`left:${facultyPopover.pos.x}px; top:${facultyPopover.pos.y}px`} role="dialog" aria-modal="true">
-      <div class="text-xs text-slate-400 mb-2">{$t('add_faculty')}</div>
+    <div class="fixed z-30 w-[360px] rounded-lg bg-white dark:bg-slate-900 ring-1 ring-black/10 dark:ring-white/10 p-3 shadow-xl" style={`left:${facultyPopover.pos.x}px; top:${facultyPopover.pos.y}px`} role="dialog" aria-modal="true">
+      <div class="text-xs text-slate-600 dark:text-slate-400 mb-2">{$t('add_faculty')}</div>
       {#key rowFacultyVersion + '-' + rowKey(facultyPopover.day, facultyPopover.slot)}
         <div class="max-h-64 overflow-auto grid gap-1 mb-3">
           {#each $facultiesStore as f}
             <label class="flex items-center gap-2 text-sm">
-              <input type="checkbox" class="accent-indigo-500" checked={facultiesForRow(facultyPopover.day, facultyPopover.slot).includes(f.id)} on:change={() => toggleRowFaculty(facultyPopover.day, facultyPopover.slot, f.id)} />
+              <input type="checkbox" class="accent-indigo-600" checked={facultiesForRow(facultyPopover.day, facultyPopover.slot).includes(f.id)} on:change={() => toggleRowFaculty(facultyPopover.day, facultyPopover.slot, f.id)} />
               <span>{f.name}</span>
             </label>
           {/each}
         </div>
       {/key}
       <div class="flex items-center justify-end gap-2">
-        <button class="rounded-md bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs" on:click={closeFacultyPopover}>{$t('close')}</button>
+        <button class="rounded-md bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 px-3 py-1.5 text-xs" on:click={closeFacultyPopover}>{$t('close')}</button>
       </div>
     </div>
   {/if}
