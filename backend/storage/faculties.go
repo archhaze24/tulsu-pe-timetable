@@ -34,15 +34,16 @@ func (r *FacultiesRepository) Create(req CreateFacultyRequest) (*Faculty, error)
 	}
 
 	return &Faculty{
-		ID:   id,
-		Name: req.Name,
+		ID:         id,
+		Name:       req.Name,
+		IsArchived: false,
 	}, nil
 }
 
 // GetByID получает факультет по ID
 func (r *FacultiesRepository) GetByID(id int64) (*Faculty, error) {
 	query := `
-		SELECT id, name
+		SELECT id, name, isArchived
 		FROM faculties
 		WHERE id = ?
 	`
@@ -51,11 +52,12 @@ func (r *FacultiesRepository) GetByID(id int64) (*Faculty, error) {
 	err := r.db.QueryRow(query, id).Scan(
 		&faculty.ID,
 		&faculty.Name,
+		&faculty.IsArchived,
 	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf(locales.GetMessage("errors.faculties.not_found"))
+			return nil, fmt.Errorf("%s", locales.GetMessage("errors.faculties.not_found"))
 		}
 		return nil, fmt.Errorf(locales.GetMessage("errors.faculties.get_failed")+": %w", err)
 	}
@@ -65,13 +67,19 @@ func (r *FacultiesRepository) GetByID(id int64) (*Faculty, error) {
 
 // GetAll получает все факультеты
 func (r *FacultiesRepository) GetAll() ([]Faculty, error) {
+	return r.GetAllByArchived(false)
+}
+
+// GetAllByArchived получает факультеты по признаку архива
+func (r *FacultiesRepository) GetAllByArchived(isArchived bool) ([]Faculty, error) {
 	query := `
-		SELECT id, name
+		SELECT id, name, isArchived
 		FROM faculties
+		WHERE isArchived = ?
 		ORDER BY name
 	`
 
-	rows, err := r.db.Query(query)
+	rows, err := r.db.Query(query, isArchived)
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.faculties.get_all_failed")+": %w", err)
 	}
@@ -83,6 +91,7 @@ func (r *FacultiesRepository) GetAll() ([]Faculty, error) {
 		err := rows.Scan(
 			&faculty.ID,
 			&faculty.Name,
+			&faculty.IsArchived,
 		)
 		if err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.faculties.scan_failed")+": %w", err)
@@ -116,18 +125,19 @@ func (r *FacultiesRepository) Update(req UpdateFacultyRequest) (*Faculty, error)
 	}
 
 	if rowsAffected == 0 {
-		return nil, fmt.Errorf(locales.GetMessage("errors.faculties.not_found"))
+		return nil, fmt.Errorf("%s", locales.GetMessage("errors.faculties.not_found"))
 	}
 
 	return &Faculty{
-		ID:   req.ID,
-		Name: req.Name,
+		ID:         req.ID,
+		Name:       req.Name,
+		IsArchived: false,
 	}, nil
 }
 
-// Delete удаляет факультет
+// Delete мягко удаляет факультет (архивирует)
 func (r *FacultiesRepository) Delete(id int64) error {
-	query := `DELETE FROM faculties WHERE id = ?`
+	query := `UPDATE faculties SET isArchived = TRUE WHERE id = ?`
 
 	result, err := r.db.Exec(query, id)
 	if err != nil {
@@ -140,24 +150,29 @@ func (r *FacultiesRepository) Delete(id int64) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf(locales.GetMessage("errors.faculties.not_found"))
+		return fmt.Errorf("%s", locales.GetMessage("errors.faculties.not_found"))
 	}
 
 	return nil
 }
 
-// Exists проверяет существование факультета по ID
-func (r *FacultiesRepository) Exists(id int64) (bool, error) {
-	query := `SELECT 1 FROM faculties WHERE id = ?`
+// Restore восстанавливает факультет из архива
+func (r *FacultiesRepository) Restore(id int64) error {
+	query := `UPDATE faculties SET isArchived = FALSE WHERE id = ?`
 
-	var exists int
-	err := r.db.QueryRow(query, id).Scan(&exists)
+	result, err := r.db.Exec(query, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
-		return false, fmt.Errorf(locales.GetMessage("errors.faculties.exists_check_failed")+": %w", err)
+		return fmt.Errorf(locales.GetMessage("errors.faculties.update_failed")+": %w", err)
 	}
 
-	return true, nil
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.faculties.update_check_failed")+": %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("%s", locales.GetMessage("errors.faculties.not_found"))
+	}
+
+	return nil
 }

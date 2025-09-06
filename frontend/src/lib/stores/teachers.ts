@@ -37,6 +37,35 @@ export async function refreshTeachers(): Promise<void> {
   }
 }
 
+export async function fetchArchivedTeachers(): Promise<Teacher[]> {
+  try {
+    const resp = await App.GetTeachersByArchived(true)
+    if (resp.error) {
+      console.error('GetTeachersByArchived error:', resp.error)
+      return []
+    }
+    return (resp.data ?? []).map(mapTeacherFromBackend)
+  } catch (e) {
+    console.error('GetTeachersByArchived failed:', e)
+    return []
+  }
+}
+
+export async function restoreTeacher(id: number): Promise<boolean> {
+  try {
+    const resp = await App.RestoreTeacher(id)
+    if (resp.error) {
+      console.error('RestoreTeacher error:', resp.error)
+      return false
+    }
+    await refreshTeachers()
+    return Boolean(resp.data)
+  } catch (e) {
+    console.error('RestoreTeacher failed:', e)
+    return false
+  }
+}
+
 export async function addTeacher(data: Omit<Teacher, 'id'>): Promise<void> {
   try {
     const resp = await App.CreateTeacher({

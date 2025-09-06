@@ -28,6 +28,39 @@ export async function refreshFaculties(): Promise<void> {
   }
 }
 
+export async function fetchArchivedFaculties(): Promise<Faculty[]> {
+  try {
+    const resp = await App.GetFacultiesByArchived(true)
+    if (resp.error) {
+      console.error('GetFacultiesByArchived error:', resp.error)
+      if (typeof window !== 'undefined') alert(resp.error)
+      return []
+    }
+    return (resp.data ?? []).map(mapFacultyFromBackend)
+  } catch (e) {
+    console.error('GetFacultiesByArchived failed:', e)
+    if (typeof window !== 'undefined') alert(String(e))
+    return []
+  }
+}
+
+export async function restoreFaculty(id: number): Promise<boolean> {
+  try {
+    const resp = await App.RestoreFaculty(id)
+    if (resp.error) {
+      console.error('RestoreFaculty error:', resp.error)
+      if (typeof window !== 'undefined') alert(resp.error)
+      return false
+    }
+    await refreshFaculties()
+    return Boolean(resp.data)
+  } catch (e) {
+    console.error('RestoreFaculty failed:', e)
+    if (typeof window !== 'undefined') alert(String(e))
+    return false
+  }
+}
+
 export async function updateFacultyName(id: number, name: string): Promise<void> {
   try {
     const resp = await App.UpdateFaculty({ id, name })

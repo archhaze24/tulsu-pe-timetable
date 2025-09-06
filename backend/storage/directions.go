@@ -34,15 +34,16 @@ func (r *DirectionsRepository) Create(req CreateDirectionRequest) (*Direction, e
 	}
 
 	return &Direction{
-		ID:   id,
-		Name: req.Name,
+		ID:         id,
+		Name:       req.Name,
+		IsArchived: false,
 	}, nil
 }
 
 // GetByID получает направление по ID
 func (r *DirectionsRepository) GetByID(id int64) (*Direction, error) {
 	query := `
-		SELECT id, name
+		SELECT id, name, isArchived
 		FROM directions
 		WHERE id = ?
 	`
@@ -51,11 +52,12 @@ func (r *DirectionsRepository) GetByID(id int64) (*Direction, error) {
 	err := r.db.QueryRow(query, id).Scan(
 		&direction.ID,
 		&direction.Name,
+		&direction.IsArchived,
 	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf(locales.GetMessage("errors.directions.not_found"))
+			return nil, fmt.Errorf("%s", locales.GetMessage("errors.directions.not_found"))
 		}
 		return nil, fmt.Errorf(locales.GetMessage("errors.directions.get_failed")+": %w", err)
 	}
@@ -65,13 +67,19 @@ func (r *DirectionsRepository) GetByID(id int64) (*Direction, error) {
 
 // GetAll получает все направления
 func (r *DirectionsRepository) GetAll() ([]Direction, error) {
+	return r.GetAllByArchived(false)
+}
+
+// GetAllByArchived получает направления по признаку архива
+func (r *DirectionsRepository) GetAllByArchived(isArchived bool) ([]Direction, error) {
 	query := `
-		SELECT id, name
+		SELECT id, name, isArchived
 		FROM directions
+		WHERE isArchived = ?
 		ORDER BY name
 	`
 
-	rows, err := r.db.Query(query)
+	rows, err := r.db.Query(query, isArchived)
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.directions.get_all_failed")+": %w", err)
 	}
@@ -83,6 +91,7 @@ func (r *DirectionsRepository) GetAll() ([]Direction, error) {
 		err := rows.Scan(
 			&direction.ID,
 			&direction.Name,
+			&direction.IsArchived,
 		)
 		if err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.directions.scan_failed")+": %w", err)
@@ -116,18 +125,19 @@ func (r *DirectionsRepository) Update(req UpdateDirectionRequest) (*Direction, e
 	}
 
 	if rowsAffected == 0 {
-		return nil, fmt.Errorf(locales.GetMessage("errors.directions.not_found"))
+		return nil, fmt.Errorf("%s", locales.GetMessage("errors.directions.not_found"))
 	}
 
 	return &Direction{
-		ID:   req.ID,
-		Name: req.Name,
+		ID:         req.ID,
+		Name:       req.Name,
+		IsArchived: false,
 	}, nil
 }
 
-// Delete удаляет направление
+// Delete мягко удаляет направление (архивирует)
 func (r *DirectionsRepository) Delete(id int64) error {
-	query := `DELETE FROM directions WHERE id = ?`
+	query := `UPDATE directions SET isArchived = TRUE WHERE id = ?`
 
 	result, err := r.db.Exec(query, id)
 	if err != nil {
@@ -140,24 +150,29 @@ func (r *DirectionsRepository) Delete(id int64) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf(locales.GetMessage("errors.directions.not_found"))
+		return fmt.Errorf("%s", locales.GetMessage("errors.directions.not_found"))
 	}
 
 	return nil
 }
 
-// Exists проверяет существование направления по ID
-func (r *DirectionsRepository) Exists(id int64) (bool, error) {
-	query := `SELECT 1 FROM directions WHERE id = ?`
+// Restore восстанавливает направление из архива
+func (r *DirectionsRepository) Restore(id int64) error {
+	query := `UPDATE directions SET isArchived = FALSE WHERE id = ?`
 
-	var exists int
-	err := r.db.QueryRow(query, id).Scan(&exists)
+	result, err := r.db.Exec(query, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
-		return false, fmt.Errorf(locales.GetMessage("errors.directions.exists_check_failed")+": %w", err)
+		return fmt.Errorf(locales.GetMessage("errors.directions.update_failed")+": %w", err)
 	}
 
-	return true, nil
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.directions.update_check_failed")+": %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("%s", locales.GetMessage("errors.directions.not_found"))
+	}
+
+	return nil
 }

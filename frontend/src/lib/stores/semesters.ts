@@ -1,4 +1,5 @@
 import { writable, get } from 'svelte/store'
+import * as App from '../../../wailsjs/go/app_services/App.js'
 
 export interface Semester {
   id: number
@@ -93,6 +94,43 @@ export function addTimeSlot(data: Omit<TimeSlot, 'id'>) {
 
 export function deleteTimeSlot(id: number) {
   timeSlotsStore.update(list => list.filter(t => t.id !== id))
+}
+
+function mapSemesterFromBackend(s: any): Semester {
+  return {
+    id: Number(s.id),
+    name: String(s.name),
+    startDate: String(s.start_date ?? ''),
+    endDate: String(s.end_date ?? '')
+  }
+}
+
+export async function fetchArchivedSemesters(): Promise<Semester[]> {
+  try {
+    const resp = await App.GetSemestersByArchived(true)
+    if (resp.error) {
+      console.error('GetSemestersByArchived error:', resp.error)
+      return []
+    }
+    return (resp.data ?? []).map(mapSemesterFromBackend)
+  } catch (e) {
+    console.error('GetSemestersByArchived failed:', e)
+    return []
+  }
+}
+
+export async function restoreSemester(id: number): Promise<boolean> {
+  try {
+    const resp = await App.RestoreSemester(id)
+    if (resp.error) {
+      console.error('RestoreSemester error:', resp.error)
+      return false
+    }
+    return Boolean(resp.data)
+  } catch (e) {
+    console.error('RestoreSemester failed:', e)
+    return false
+  }
 }
 
 
