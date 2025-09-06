@@ -2,14 +2,16 @@ package storage
 
 // Direction представляет направление (футбол, плавание и т.д.)
 type Direction struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	IsArchived bool   `json:"is_archived"`
 }
 
 // Faculty представляет факультет
 type Faculty struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	IsArchived bool   `json:"is_archived"`
 }
 
 // Teacher представляет преподавателя
@@ -23,14 +25,16 @@ type Teacher struct {
 
 	// Связанные данные (заполняются при запросах с JOIN)
 	DirectionName string `json:"direction_name,omitempty"`
+	IsArchived    bool   `json:"is_archived"`
 }
 
 // Semester представляет семестр
 type Semester struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	StartDate string `json:"start_date"`
-	EndDate   string `json:"end_date"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	StartDate  string `json:"start_date"`
+	EndDate    string `json:"end_date"`
+	IsArchived bool   `json:"is_archived"`
 }
 
 // Lesson представляет занятие в расписании

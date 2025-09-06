@@ -29,6 +29,35 @@ export async function refreshDirections(): Promise<void> {
   }
 }
 
+export async function fetchArchivedDirections(): Promise<Direction[]> {
+  try {
+    const resp = await App.GetDirectionsByArchived(true)
+    if (resp.error) {
+      console.error('GetDirectionsByArchived error:', resp.error)
+      return []
+    }
+    return (resp.data ?? []).map(mapDirectionFromBackend)
+  } catch (e) {
+    console.error('GetDirectionsByArchived failed:', e)
+    return []
+  }
+}
+
+export async function restoreDirection(id: number): Promise<boolean> {
+  try {
+    const resp = await App.RestoreDirection(id)
+    if (resp.error) {
+      console.error('RestoreDirection error:', resp.error)
+      return false
+    }
+    await refreshDirections()
+    return Boolean(resp.data)
+  } catch (e) {
+    console.error('RestoreDirection failed:', e)
+    return false
+  }
+}
+
 export async function updateDirection(id: number, changes: { name: string }): Promise<void> {
   try {
     const resp = await App.UpdateDirection({ id, name: changes.name })

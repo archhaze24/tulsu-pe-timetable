@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"tulsu-pe-timetable/backend/locales"
 )
@@ -40,13 +41,14 @@ func (r *TeachersRepository) Create(req CreateTeacherRequest) (*Teacher, error) 
 		MiddleName:  req.MiddleName,
 		DirectionID: req.DirectionID,
 		Rate:        req.Rate,
+		IsArchived:  false,
 	}, nil
 }
 
 // GetByID получает преподавателя по ID
 func (r *TeachersRepository) GetByID(id int64) (*Teacher, error) {
 	query := `
-		SELECT t.id, t.first_name, t.last_name, t.middle_name, t.direction_id, t.rate, d.name
+		SELECT t.id, t.first_name, t.last_name, t.middle_name, t.direction_id, t.rate, d.name, t.isArchived
 		FROM teachers t
 		LEFT JOIN directions d ON t.direction_id = d.id
 		WHERE t.id = ?
@@ -62,11 +64,12 @@ func (r *TeachersRepository) GetByID(id int64) (*Teacher, error) {
 		&teacher.DirectionID,
 		&teacher.Rate,
 		&directionName,
+		&teacher.IsArchived,
 	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf(locales.GetMessage("errors.teachers.not_found"))
+			return nil, errors.New(locales.GetMessage("errors.teachers.not_found"))
 		}
 		return nil, fmt.Errorf(locales.GetMessage("errors.teachers.get_failed")+": %w", err)
 	}
@@ -78,16 +81,22 @@ func (r *TeachersRepository) GetByID(id int64) (*Teacher, error) {
 	return &teacher, nil
 }
 
-// GetAll получает всех преподавателей
+// GetAll получает всех неархивных преподавателей
 func (r *TeachersRepository) GetAll() ([]Teacher, error) {
+	return r.GetAllByArchived(false)
+}
+
+// GetAllByArchived получает всех преподавателей по признаку архивации
+func (r *TeachersRepository) GetAllByArchived(isArchived bool) ([]Teacher, error) {
 	query := `
-		SELECT t.id, t.first_name, t.last_name, t.middle_name, t.direction_id, t.rate, d.name
+		SELECT t.id, t.first_name, t.last_name, t.middle_name, t.direction_id, t.rate, d.name, t.isArchived
 		FROM teachers t
 		LEFT JOIN directions d ON t.direction_id = d.id
+		WHERE t.isArchived = ?
 		ORDER BY t.last_name, t.first_name
 	`
 
-	rows, err := r.db.Query(query)
+	rows, err := r.db.Query(query, isArchived)
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.teachers.get_all_failed")+": %w", err)
 	}
@@ -105,6 +114,7 @@ func (r *TeachersRepository) GetAll() ([]Teacher, error) {
 			&teacher.DirectionID,
 			&teacher.Rate,
 			&directionName,
+			&teacher.IsArchived,
 		)
 		if err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.teachers.scan_failed")+": %w", err)
@@ -141,7 +151,7 @@ func (r *TeachersRepository) Update(req UpdateTeacherRequest) (*Teacher, error) 
 	}
 
 	if rowsAffected == 0 {
-		return nil, fmt.Errorf(locales.GetMessage("errors.teachers.not_found"))
+		return nil, errors.New(locales.GetMessage("errors.teachers.not_found"))
 	}
 
 	return &Teacher{
@@ -151,12 +161,13 @@ func (r *TeachersRepository) Update(req UpdateTeacherRequest) (*Teacher, error) 
 		MiddleName:  req.MiddleName,
 		DirectionID: req.DirectionID,
 		Rate:        req.Rate,
+		IsArchived:  false,
 	}, nil
 }
 
-// Delete удаляет преподавателя
+// Delete мягко удаляет преподавателя
 func (r *TeachersRepository) Delete(id int64) error {
-	query := `DELETE FROM teachers WHERE id = ?`
+	query := `UPDATE teachers SET isArchived = TRUE WHERE id = ?`
 
 	result, err := r.db.Exec(query, id)
 	if err != nil {
@@ -169,7 +180,7 @@ func (r *TeachersRepository) Delete(id int64) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf(locales.GetMessage("errors.teachers.not_found"))
+		return errors.New(locales.GetMessage("errors.teachers.not_found"))
 	}
 
 	return nil
@@ -202,4 +213,25 @@ func (r *TeachersRepository) GetLessonsCount(teacherID int64) (int, error) {
 	}
 
 	return count, nil
+}
+
+// Restore восстанавливает преподавателя из архива
+func (r *TeachersRepository) Restore(id int64) error {
+	query := `UPDATE teachers SET isArchived = FALSE WHERE id = ?`
+
+	result, err := r.db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.teachers.update_failed")+": %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.teachers.update_check_failed")+": %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return errors.New(locales.GetMessage("errors.teachers.not_found"))
+	}
+
+	return nil
 }
