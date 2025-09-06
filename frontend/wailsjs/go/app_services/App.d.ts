@@ -10,6 +10,8 @@ export function CreateFaculty(arg1:storage.CreateFacultyRequest):Promise<app_ser
 
 export function CreateLesson(arg1:storage.CreateLessonRequest):Promise<app_services.ApiResponse_tulsu_pe_timetable_backend_storage_Lesson_>;
 
+export function CreateSemester(arg1:storage.CreateSemesterRequest):Promise<app_services.ApiResponse_tulsu_pe_timetable_backend_storage_Semester_>;
+
 export function CreateTeacher(arg1:storage.CreateTeacherRequest):Promise<app_services.ApiResponse_tulsu_pe_timetable_backend_storage_Teacher_>;
 
 export function DeleteDirection(arg1:number):Promise<app_services.ApiResponse_bool_>;
@@ -17,6 +19,8 @@ export function DeleteDirection(arg1:number):Promise<app_services.ApiResponse_bo
 export function DeleteFaculty(arg1:number):Promise<app_services.ApiResponse_bool_>;
 
 export function DeleteLesson(arg1:number):Promise<app_services.ApiResponse_bool_>;
+
+export function DeleteSemester(arg1:number):Promise<app_services.ApiResponse_bool_>;
 
 export function DeleteTeacher(arg1:number):Promise<app_services.ApiResponse_bool_>;
 
@@ -26,11 +30,29 @@ export function GetConfigPath():Promise<app_services.ApiResponse_string_>;
 
 export function GetDirections():Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Direction_>;
 
+export function GetDirectionsByArchived(arg1:boolean):Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Direction_>;
+
 export function GetFaculties():Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Faculty_>;
+
+export function GetFacultiesByArchived(arg1:boolean):Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Faculty_>;
 
 export function GetLessons():Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Lesson_>;
 
+export function GetSemesters():Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Semester_>;
+
+export function GetSemestersByArchived(arg1:boolean):Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Semester_>;
+
 export function GetTeachers():Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Teacher_>;
+
+export function GetTeachersByArchived(arg1:boolean):Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Teacher_>;
+
+export function RestoreDirection(arg1:number):Promise<app_services.ApiResponse_bool_>;
+
+export function RestoreFaculty(arg1:number):Promise<app_services.ApiResponse_bool_>;
+
+export function RestoreSemester(arg1:number):Promise<app_services.ApiResponse_bool_>;
+
+export function RestoreTeacher(arg1:number):Promise<app_services.ApiResponse_bool_>;
 
 export function UpdateConfig(arg1:config.Config):Promise<app_services.ApiResponse_bool_>;
 
@@ -39,5 +61,7 @@ export function UpdateDirection(arg1:storage.UpdateDirectionRequest):Promise<app
 export function UpdateFaculty(arg1:storage.UpdateFacultyRequest):Promise<app_services.ApiResponse_tulsu_pe_timetable_backend_storage_Faculty_>;
 
 export function UpdateLesson(arg1:storage.UpdateLessonRequest):Promise<app_services.ApiResponse_tulsu_pe_timetable_backend_storage_Lesson_>;
+
+export function UpdateSemester(arg1:storage.UpdateSemesterRequest):Promise<app_services.ApiResponse_tulsu_pe_timetable_backend_storage_Semester_>;
 
 export function UpdateTeacher(arg1:storage.UpdateTeacherRequest):Promise<app_services.ApiResponse_tulsu_pe_timetable_backend_storage_Teacher_>;

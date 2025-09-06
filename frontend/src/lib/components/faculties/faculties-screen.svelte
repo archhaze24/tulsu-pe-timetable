@@ -21,24 +21,29 @@
 </script>
 
 <div class="max-w-md w-full px-6 py-10">
-  <button class="mb-6 text-slate-300 hover:text-white text-sm" on:click={back}>
+  <button class="mb-6 text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-white text-sm" on:click={back}>
     ← {$t('back')}
   </button>
 
-  <h2 class="text-2xl font-semibold">{$t('faculties')}</h2>
+  <div class="flex items-center justify-between gap-3">
+    <h2 class="text-2xl font-semibold">{$t('faculties')}</h2>
+    <button class="rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 px-3 py-2 text-xs font-medium shadow-sm ring-1 ring-black/5 transition dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:active:bg-slate-700 dark:ring-white/10" on:click={() => navigate('faculties_archive')}>
+      {$t('archive')}
+    </button>
+  </div>
   <div class="mt-6 grid grid-cols-1 gap-3">
     {#each $facultiesStore as faculty}
-      <div class="w-full rounded-lg bg-slate-800/60 px-2 py-2 ring-1 ring-white/10 shadow-sm flex items-center gap-2">
-        <button class="flex-1 text-left rounded-md hover:bg-slate-800 active:bg-slate-700 px-3 py-2 transition" on:click={() => openFaculty(faculty)}>
+      <div class="w-full rounded-lg bg-slate-100 px-2 py-2 ring-1 ring-black/5 dark:bg-slate-800/60 dark:ring-white/10 shadow-sm flex items-center gap-2">
+        <button class="flex-1 text-left rounded-md hover:bg-slate-200 active:bg-slate-300 dark:hover:bg-slate-800 dark:active:bg-slate-700 px-3 py-2 transition" on:click={() => openFaculty(faculty)}>
           {faculty.name}
         </button>
-        <button class="rounded-md bg-rose-600/90 hover:bg-rose-600 active:bg-rose-700 px-3 py-2 text-xs font-medium transition" on:click={() => askDelete(faculty.id)}>
+        <button class="rounded-md bg-rose-600/90 hover:bg-rose-600 active:bg-rose-700 px-3 py-2 text-xs font-medium transition text-white" on:click={() => askDelete(faculty.id)}>
           {$t('delete')}
         </button>
       </div>
     {/each}
   </div>
-  <button class="mt-8 w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 px-4 py-4 text-base md:text-lg font-semibold shadow-md transition" on:click={createNew}>
+  <button class="mt-8 w-full rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white px-4 py-4 text-base md:text-lg font-semibold shadow-md transition" on:click={createNew}>
     {$t('create')}
   </button>
   <ConfirmModal bind:open={confirmOpen} title={$t('confirm_title')} message={$t('confirm_message_generic')} confirmText={$t('confirm')} cancelText={$t('dismiss')} on:confirm={onConfirm} on:cancel={onCancel} />

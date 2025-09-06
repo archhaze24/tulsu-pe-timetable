@@ -14,6 +14,10 @@ export function CreateLesson(arg1) {
   return window['go']['app_services']['App']['CreateLesson'](arg1);
 }
 
+export function CreateSemester(arg1) {
+  return window['go']['app_services']['App']['CreateSemester'](arg1);
+}
+
 export function CreateTeacher(arg1) {
   return window['go']['app_services']['App']['CreateTeacher'](arg1);
 }
@@ -28,6 +32,10 @@ export function DeleteFaculty(arg1) {
 
 export function DeleteLesson(arg1) {
   return window['go']['app_services']['App']['DeleteLesson'](arg1);
+}
+
+export function DeleteSemester(arg1) {
+  return window['go']['app_services']['App']['DeleteSemester'](arg1);
 }
 
 export function DeleteTeacher(arg1) {
@@ -46,16 +54,52 @@ export function GetDirections() {
   return window['go']['app_services']['App']['GetDirections']();
 }
 
+export function GetDirectionsByArchived(arg1) {
+  return window['go']['app_services']['App']['GetDirectionsByArchived'](arg1);
+}
+
 export function GetFaculties() {
   return window['go']['app_services']['App']['GetFaculties']();
+}
+
+export function GetFacultiesByArchived(arg1) {
+  return window['go']['app_services']['App']['GetFacultiesByArchived'](arg1);
 }
 
 export function GetLessons() {
   return window['go']['app_services']['App']['GetLessons']();
 }
 
+export function GetSemesters() {
+  return window['go']['app_services']['App']['GetSemesters']();
+}
+
+export function GetSemestersByArchived(arg1) {
+  return window['go']['app_services']['App']['GetSemestersByArchived'](arg1);
+}
+
 export function GetTeachers() {
   return window['go']['app_services']['App']['GetTeachers']();
+}
+
+export function GetTeachersByArchived(arg1) {
+  return window['go']['app_services']['App']['GetTeachersByArchived'](arg1);
+}
+
+export function RestoreDirection(arg1) {
+  return window['go']['app_services']['App']['RestoreDirection'](arg1);
+}
+
+export function RestoreFaculty(arg1) {
+  return window['go']['app_services']['App']['RestoreFaculty'](arg1);
+}
+
+export function RestoreSemester(arg1) {
+  return window['go']['app_services']['App']['RestoreSemester'](arg1);
+}
+
+export function RestoreTeacher(arg1) {
+  return window['go']['app_services']['App']['RestoreTeacher'](arg1);
 }
 
 export function UpdateConfig(arg1) {
@@ -72,6 +116,10 @@ export function UpdateFaculty(arg1) {
 
 export function UpdateLesson(arg1) {
   return window['go']['app_services']['App']['UpdateLesson'](arg1);
+}
+
+export function UpdateSemester(arg1) {
+  return window['go']['app_services']['App']['UpdateSemester'](arg1);
 }
 
 export function UpdateTeacher(arg1) {

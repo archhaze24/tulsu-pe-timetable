@@ -128,6 +128,38 @@ export namespace app_services {
 		    return a;
 		}
 	}
+	export class ApiResponse__tulsu_pe_timetable_backend_storage_Semester_ {
+	    data?: storage.Semester;
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApiResponse__tulsu_pe_timetable_backend_storage_Semester_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.data = this.convertValues(source["data"], storage.Semester);
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ApiResponse__tulsu_pe_timetable_backend_storage_Teacher_ {
 	    data?: storage.Teacher;
 	    error: string;
@@ -256,6 +288,38 @@ export namespace app_services {
 		    return a;
 		}
 	}
+	export class ApiResponse___tulsu_pe_timetable_backend_storage_Semester_ {
+	    data: storage.Semester[];
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApiResponse___tulsu_pe_timetable_backend_storage_Semester_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.data = this.convertValues(source["data"], storage.Semester);
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ApiResponse___tulsu_pe_timetable_backend_storage_Teacher_ {
 	    data: storage.Teacher[];
 	    error: string;
@@ -323,6 +387,7 @@ export namespace config {
 	
 	export class Config {
 	    dbPath: string;
+	    theme: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -331,6 +396,7 @@ export namespace config {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.dbPath = source["dbPath"];
+	        this.theme = source["theme"];
 	    }
 	}
 
@@ -388,6 +454,22 @@ export namespace storage {
 	        this.teacher_ids = source["teacher_ids"];
 	    }
 	}
+	export class CreateSemesterRequest {
+	    name: string;
+	    start_date: string;
+	    end_date: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateSemesterRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.start_date = source["start_date"];
+	        this.end_date = source["end_date"];
+	    }
+	}
 	export class CreateTeacherRequest {
 	    first_name: string;
 	    last_name: string;
@@ -411,6 +493,7 @@ export namespace storage {
 	export class Direction {
 	    id: number;
 	    name: string;
+	    is_archived: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Direction(source);
@@ -420,11 +503,13 @@ export namespace storage {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.is_archived = source["is_archived"];
 	    }
 	}
 	export class Faculty {
 	    id: number;
 	    name: string;
+	    is_archived: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Faculty(source);
@@ -434,6 +519,7 @@ export namespace storage {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.is_archived = source["is_archived"];
 	    }
 	}
 	export class Lesson {
@@ -472,6 +558,26 @@ export namespace storage {
 	        this.teacher_ids = source["teacher_ids"];
 	    }
 	}
+	export class Semester {
+	    id: number;
+	    name: string;
+	    start_date: string;
+	    end_date: string;
+	    is_archived: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Semester(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.start_date = source["start_date"];
+	        this.end_date = source["end_date"];
+	        this.is_archived = source["is_archived"];
+	    }
+	}
 	export class Teacher {
 	    id: number;
 	    first_name: string;
@@ -480,6 +586,7 @@ export namespace storage {
 	    direction_id: number;
 	    rate: number;
 	    direction_name?: string;
+	    is_archived: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Teacher(source);
@@ -494,6 +601,7 @@ export namespace storage {
 	        this.direction_id = source["direction_id"];
 	        this.rate = source["rate"];
 	        this.direction_name = source["direction_name"];
+	        this.is_archived = source["is_archived"];
 	    }
 	}
 	export class UpdateDirectionRequest {
@@ -550,6 +658,24 @@ export namespace storage {
 	        this.teacher_count = source["teacher_count"];
 	        this.faculty_ids = source["faculty_ids"];
 	        this.teacher_ids = source["teacher_ids"];
+	    }
+	}
+	export class UpdateSemesterRequest {
+	    id: number;
+	    name: string;
+	    start_date: string;
+	    end_date: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateSemesterRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.start_date = source["start_date"];
+	        this.end_date = source["end_date"];
 	    }
 	}
 	export class UpdateTeacherRequest {
