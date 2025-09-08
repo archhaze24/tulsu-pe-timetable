@@ -461,3 +461,46 @@ func (a *App) RestoreSemester(id int64) ApiResponse[bool] {
 	}
 	return ApiResponse[bool]{Data: true, Error: ""}
 }
+
+// GetSemesterTeachers получает всех преподавателей семестра
+func (a *App) GetSemesterTeachers(semesterID int64) ApiResponse[[]storage.Teacher] {
+	teachers, err := a.storage.Semesters.GetSemesterTeachers(semesterID)
+	if err != nil {
+		return ApiResponse[[]storage.Teacher]{Data: nil, Error: err.Error()}
+	}
+	return ApiResponse[[]storage.Teacher]{Data: teachers, Error: ""}
+}
+
+// GetAllTeachersForSemester получает всех преподавателей доступных для семестра (включая статус привязки)
+func (a *App) GetAllTeachersForSemester(semesterID int64) ApiResponse[[]storage.Teacher] {
+	teachers, err := a.storage.Semesters.GetAllTeachersForSemester(semesterID)
+	if err != nil {
+		return ApiResponse[[]storage.Teacher]{Data: nil, Error: err.Error()}
+	}
+	return ApiResponse[[]storage.Teacher]{Data: teachers, Error: ""}
+}
+
+// BindTeacherToSemester привязывает преподавателя к семестру
+func (a *App) BindTeacherToSemester(req storage.BindTeacherToSemesterRequest) ApiResponse[bool] {
+	if err := a.storage.Semesters.BindTeacher(req); err != nil {
+		return ApiResponse[bool]{Data: false, Error: err.Error()}
+	}
+	return ApiResponse[bool]{Data: true, Error: ""}
+}
+
+// UnbindTeacherFromSemester отвязывает преподавателя от семестра
+func (a *App) UnbindTeacherFromSemester(req storage.UnbindTeacherFromSemesterRequest) ApiResponse[bool] {
+	if err := a.storage.Semesters.UnbindTeacher(req); err != nil {
+		return ApiResponse[bool]{Data: false, Error: err.Error()}
+	}
+	return ApiResponse[bool]{Data: true, Error: ""}
+}
+
+// GetLessonsBySemester получает все занятия семестра
+func (a *App) GetLessonsBySemester(semesterID int64) ApiResponse[[]storage.Lesson] {
+	lessons, err := a.storage.Lessons.GetBySemesterID(semesterID)
+	if err != nil {
+		return ApiResponse[[]storage.Lesson]{Data: nil, Error: err.Error()}
+	}
+	return ApiResponse[[]storage.Lesson]{Data: lessons, Error: ""}
+}

@@ -20,11 +20,11 @@ func NewTeachersRepository(db *sql.DB) *TeachersRepository {
 // Create создает нового преподавателя
 func (r *TeachersRepository) Create(req CreateTeacherRequest) (*Teacher, error) {
 	query := `
-		INSERT INTO teachers (first_name, last_name, middle_name, direction_id, rate)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO teachers (first_name, last_name, middle_name, direction_id, rate, isGuest)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`
 
-	result, err := r.db.Exec(query, req.FirstName, req.LastName, req.MiddleName, req.DirectionID, req.Rate)
+	result, err := r.db.Exec(query, req.FirstName, req.LastName, req.MiddleName, req.DirectionID, req.Rate, false)
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.teachers.create_failed")+": %w", err)
 	}
@@ -42,13 +42,14 @@ func (r *TeachersRepository) Create(req CreateTeacherRequest) (*Teacher, error) 
 		DirectionID: req.DirectionID,
 		Rate:        req.Rate,
 		IsArchived:  false,
+		IsGuest:     false,
 	}, nil
 }
 
 // GetByID получает преподавателя по ID
 func (r *TeachersRepository) GetByID(id int64) (*Teacher, error) {
 	query := `
-		SELECT t.id, t.first_name, t.last_name, t.middle_name, t.direction_id, t.rate, d.name, t.isArchived
+		SELECT t.id, t.first_name, t.last_name, t.middle_name, t.direction_id, t.rate, d.name, t.isArchived, t.isGuest
 		FROM teachers t
 		LEFT JOIN directions d ON t.direction_id = d.id
 		WHERE t.id = ?
@@ -65,6 +66,7 @@ func (r *TeachersRepository) GetByID(id int64) (*Teacher, error) {
 		&teacher.Rate,
 		&directionName,
 		&teacher.IsArchived,
+		&teacher.IsGuest,
 	)
 
 	if err != nil {
@@ -89,7 +91,7 @@ func (r *TeachersRepository) GetAll() ([]Teacher, error) {
 // GetAllByArchived получает всех преподавателей по признаку архивации
 func (r *TeachersRepository) GetAllByArchived(isArchived bool) ([]Teacher, error) {
 	query := `
-		SELECT t.id, t.first_name, t.last_name, t.middle_name, t.direction_id, t.rate, d.name, t.isArchived
+		SELECT t.id, t.first_name, t.last_name, t.middle_name, t.direction_id, t.rate, d.name, t.isArchived, t.isGuest
 		FROM teachers t
 		LEFT JOIN directions d ON t.direction_id = d.id
 		WHERE t.isArchived = ?
@@ -115,6 +117,7 @@ func (r *TeachersRepository) GetAllByArchived(isArchived bool) ([]Teacher, error
 			&teacher.Rate,
 			&directionName,
 			&teacher.IsArchived,
+			&teacher.IsGuest,
 		)
 		if err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.teachers.scan_failed")+": %w", err)
@@ -162,6 +165,7 @@ func (r *TeachersRepository) Update(req UpdateTeacherRequest) (*Teacher, error) 
 		DirectionID: req.DirectionID,
 		Rate:        req.Rate,
 		IsArchived:  false,
+		IsGuest:     false,
 	}, nil
 }
 
