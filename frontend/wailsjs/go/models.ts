@@ -404,6 +404,20 @@ export namespace config {
 
 export namespace storage {
 	
+	export class BindTeacherToSemesterRequest {
+	    semester_id: number;
+	    teacher_id: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BindTeacherToSemesterRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.semester_id = source["semester_id"];
+	        this.teacher_id = source["teacher_id"];
+	    }
+	}
 	export class CreateDirectionRequest {
 	    name: string;
 	
@@ -587,6 +601,8 @@ export namespace storage {
 	    rate: number;
 	    direction_name?: string;
 	    is_archived: boolean;
+	    is_guest: boolean;
+	    is_bound?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Teacher(source);
@@ -602,6 +618,22 @@ export namespace storage {
 	        this.rate = source["rate"];
 	        this.direction_name = source["direction_name"];
 	        this.is_archived = source["is_archived"];
+	        this.is_guest = source["is_guest"];
+	        this.is_bound = source["is_bound"];
+	    }
+	}
+	export class UnbindTeacherFromSemesterRequest {
+	    semester_id: number;
+	    teacher_id: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new UnbindTeacherFromSemesterRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.semester_id = source["semester_id"];
+	        this.teacher_id = source["teacher_id"];
 	    }
 	}
 	export class UpdateDirectionRequest {

@@ -31,7 +31,12 @@ func (r *LessonsRepository) Create(req CreateLessonRequest) (*Lesson, error) {
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 
-	result, err := tx.Exec(query, req.SemesterID, req.DayOfWeek, req.StartTime, req.EndTime, req.DirectionID, req.TeacherCount)
+	// Use sql.NullInt64 for optional teacher_count to avoid driver issues with pointers
+	var teacherCount sql.NullInt64
+	if req.TeacherCount != nil {
+		teacherCount = sql.NullInt64{Int64: int64(*req.TeacherCount), Valid: true}
+	}
+	result, err := tx.Exec(query, req.SemesterID, req.DayOfWeek, req.StartTime, req.EndTime, req.DirectionID, teacherCount)
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_failed")+": %w", err)
 	}
@@ -105,7 +110,7 @@ func (r *LessonsRepository) GetByID(id int64) (*Lesson, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.not_found"))
+			return nil, fmt.Errorf("%s", locales.GetMessage("errors.lessons.not_found"))
 		}
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_failed")+": %w", err)
 	}
@@ -232,7 +237,12 @@ func (r *LessonsRepository) Update(req UpdateLessonRequest) (*Lesson, error) {
 		WHERE id = ?
 	`
 
-	result, err := tx.Exec(query, req.SemesterID, req.DayOfWeek, req.StartTime, req.EndTime, req.DirectionID, req.TeacherCount, req.ID)
+	// Use sql.NullInt64 for optional teacher_count on update as well
+	var teacherCount sql.NullInt64
+	if req.TeacherCount != nil {
+		teacherCount = sql.NullInt64{Int64: int64(*req.TeacherCount), Valid: true}
+	}
+	result, err := tx.Exec(query, req.SemesterID, req.DayOfWeek, req.StartTime, req.EndTime, req.DirectionID, teacherCount, req.ID)
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.update_failed")+": %w", err)
 	}
@@ -243,7 +253,7 @@ func (r *LessonsRepository) Update(req UpdateLessonRequest) (*Lesson, error) {
 	}
 
 	if rowsAffected == 0 {
-		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.not_found"))
+		return nil, fmt.Errorf("%s", locales.GetMessage("errors.lessons.not_found"))
 	}
 
 	// Удаляем старые связи с факультетами
@@ -325,7 +335,7 @@ func (r *LessonsRepository) Delete(id int64) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf(locales.GetMessage("errors.lessons.not_found"))
+		return fmt.Errorf("%s", locales.GetMessage("errors.lessons.not_found"))
 	}
 
 	// Подтверждаем транзакцию

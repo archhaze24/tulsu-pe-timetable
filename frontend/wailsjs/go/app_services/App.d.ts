@@ -4,6 +4,8 @@ import {storage} from '../models';
 import {app_services} from '../models';
 import {config} from '../models';
 
+export function BindTeacherToSemester(arg1:storage.BindTeacherToSemesterRequest):Promise<app_services.ApiResponse_bool_>;
+
 export function CreateDirection(arg1:storage.CreateDirectionRequest):Promise<app_services.ApiResponse_tulsu_pe_timetable_backend_storage_Direction_>;
 
 export function CreateFaculty(arg1:storage.CreateFacultyRequest):Promise<app_services.ApiResponse_tulsu_pe_timetable_backend_storage_Faculty_>;
@@ -24,6 +26,8 @@ export function DeleteSemester(arg1:number):Promise<app_services.ApiResponse_boo
 
 export function DeleteTeacher(arg1:number):Promise<app_services.ApiResponse_bool_>;
 
+export function GetAllTeachersForSemester(arg1:number):Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Teacher_>;
+
 export function GetConfig():Promise<app_services.ApiResponse_tulsu_pe_timetable_backend_config_Config_>;
 
 export function GetConfigPath():Promise<app_services.ApiResponse_string_>;
@@ -37,6 +41,10 @@ export function GetFaculties():Promise<app_services.ApiResponse___tulsu_pe_timet
 export function GetFacultiesByArchived(arg1:boolean):Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Faculty_>;
 
 export function GetLessons():Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Lesson_>;
+
+export function GetLessonsBySemester(arg1:number):Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Lesson_>;
+
+export function GetSemesterTeachers(arg1:number):Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Teacher_>;
 
 export function GetSemesters():Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Semester_>;
 
@@ -53,6 +61,8 @@ export function RestoreFaculty(arg1:number):Promise<app_services.ApiResponse_boo
 export function RestoreSemester(arg1:number):Promise<app_services.ApiResponse_bool_>;
 
 export function RestoreTeacher(arg1:number):Promise<app_services.ApiResponse_bool_>;
+
+export function UnbindTeacherFromSemester(arg1:storage.UnbindTeacherFromSemesterRequest):Promise<app_services.ApiResponse_bool_>;
 
 export function UpdateConfig(arg1:config.Config):Promise<app_services.ApiResponse_bool_>;
 

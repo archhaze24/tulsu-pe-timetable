@@ -318,6 +318,27 @@ func (r *SemestersRepository) BindTeacher(req BindTeacherToSemesterRequest) erro
 		return fmt.Errorf(locales.GetMessage("errors.semesters.bind_teacher_failed")+": %w", err)
 	}
 
+	// Если преподаватель гостевой, он может быть привязан только к одному семестру
+	var isGuest bool
+	if err := r.db.QueryRow(`SELECT isGuest FROM teachers WHERE id = ?`, req.TeacherID).Scan(&isGuest); err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("%s", locales.GetMessage("errors.teachers.not_found"))
+		}
+		return fmt.Errorf(locales.GetMessage("errors.teachers.get_failed")+": %w", err)
+	}
+	if isGuest {
+		var existingSemesterID int64
+		err := r.db.QueryRow(`SELECT semester_id FROM semester_teachers WHERE teacher_id = ? LIMIT 1`, req.TeacherID).Scan(&existingSemesterID)
+		if err == nil {
+			if existingSemesterID != req.SemesterID {
+				return fmt.Errorf("%s", locales.GetMessage("errors.semesters.guest_already_assigned"))
+			}
+			// если совпадает с текущим семестром, то это уже обработано выше как alreadyBound
+		} else if err != sql.ErrNoRows {
+			return fmt.Errorf(locales.GetMessage("errors.semesters.bind_teacher_failed")+": %w", err)
+		}
+	}
+
 	// Привязываем преподавателя к семестру
 	insertQuery := `INSERT INTO semester_teachers (semester_id, teacher_id) VALUES (?, ?)`
 	_, err = r.db.Exec(insertQuery, req.SemesterID, req.TeacherID)
