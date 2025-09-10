@@ -26,6 +26,8 @@ type Teacher struct {
 	// Связанные данные (заполняются при запросах с JOIN)
 	DirectionName string `json:"direction_name,omitempty"`
 	IsArchived    bool   `json:"is_archived"`
+	IsGuest       bool   `json:"is_guest"`
+	IsBound       bool   `json:"is_bound,omitempty"` // Привязан ли к семестру
 }
 
 // Semester представляет семестр
@@ -137,4 +139,16 @@ type UpdateLessonRequest struct {
 	TeacherCount *int    `json:"teacher_count,omitempty"`
 	FacultyIDs   []int64 `json:"faculty_ids"`
 	TeacherIDs   []int64 `json:"teacher_ids"`
+}
+
+// BindTeacherToSemesterRequest запрос на привязку преподавателя к семестру
+type BindTeacherToSemesterRequest struct {
+	SemesterID int64 `json:"semester_id"`
+	TeacherID  int64 `json:"teacher_id"`
+}
+
+// UnbindTeacherFromSemesterRequest запрос на отвязку преподавателя от семестра
+type UnbindTeacherFromSemesterRequest struct {
+	SemesterID int64 `json:"semester_id"`
+	TeacherID  int64 `json:"teacher_id"`
 }

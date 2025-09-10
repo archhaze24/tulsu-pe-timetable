@@ -16,14 +16,22 @@ func NewSemestersRepository(db *sql.DB) *SemestersRepository {
 	return &SemestersRepository{db: db}
 }
 
-// Create создает новый семестр
+// Create создает новый семестр и автоматически привязывает всех негостевых преподавателей
 func (r *SemestersRepository) Create(req CreateSemesterRequest) (*Semester, error) {
+	// Начинаем транзакцию
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.semesters.create_failed")+": %w", err)
+	}
+	defer tx.Rollback()
+
+	// Создаем семестр
 	query := `
 		INSERT INTO semesters (name, start_date, end_date)
 		VALUES (?, ?, ?)
 	`
 
-	result, err := r.db.Exec(query, req.Name, req.StartDate, req.EndDate)
+	result, err := tx.Exec(query, req.Name, req.StartDate, req.EndDate)
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.semesters.create_failed")+": %w", err)
 	}
@@ -31,6 +39,17 @@ func (r *SemestersRepository) Create(req CreateSemesterRequest) (*Semester, erro
 	id, err := result.LastInsertId()
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.semesters.get_id_failed")+": %w", err)
+	}
+
+	// Привязываем всех негостевых неархивированных преподавателей к семестру
+	err = r.bindNonGuestTeachersToSemester(tx, id)
+	if err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.semesters.bind_teachers_failed")+": %w", err)
+	}
+
+	// Подтверждаем транзакцию
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.commit_failed")+": %w", err)
 	}
 
 	return &Semester{
@@ -199,4 +218,188 @@ func (r *SemestersRepository) Restore(id int64) error {
 	}
 
 	return nil
+}
+
+// bindNonGuestTeachersToSemester привязывает всех негостевых неархивированных преподавателей к семестру
+func (r *SemestersRepository) bindNonGuestTeachersToSemester(tx *sql.Tx, semesterID int64) error {
+	query := `
+		INSERT INTO semester_teachers (semester_id, teacher_id)
+		SELECT ?, t.id
+		FROM teachers t
+		WHERE t.isArchived = FALSE AND t.isGuest = FALSE
+	`
+
+	_, err := tx.Exec(query, semesterID)
+	return err
+}
+
+// GetSemesterTeachers получает всех преподавателей семестра
+func (r *SemestersRepository) GetSemesterTeachers(semesterID int64) ([]Teacher, error) {
+	query := `
+		SELECT t.id, t.first_name, t.last_name, t.middle_name, t.direction_id, t.rate, t.isArchived, t.isGuest,
+		       d.name as direction_name
+		FROM teachers t
+		LEFT JOIN directions d ON t.direction_id = d.id
+		INNER JOIN semester_teachers st ON t.id = st.teacher_id
+		WHERE st.semester_id = ?
+		ORDER BY t.last_name, t.first_name
+	`
+
+	rows, err := r.db.Query(query, semesterID)
+	if err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.semesters.get_teachers_failed")+": %w", err)
+	}
+	defer rows.Close()
+
+	var teachers []Teacher
+	for rows.Next() {
+		var teacher Teacher
+		var directionName sql.NullString
+		err := rows.Scan(
+			&teacher.ID,
+			&teacher.FirstName,
+			&teacher.LastName,
+			&teacher.MiddleName,
+			&teacher.DirectionID,
+			&teacher.Rate,
+			&teacher.IsArchived,
+			&teacher.IsGuest,
+			&directionName,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(locales.GetMessage("errors.teachers.scan_failed")+": %w", err)
+		}
+
+		if directionName.Valid {
+			teacher.DirectionName = directionName.String
+		}
+
+		teachers = append(teachers, teacher)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.teachers.iterate_failed")+": %w", err)
+	}
+
+	return teachers, nil
+}
+
+// BindTeacher привязывает преподавателя к семестру
+func (r *SemestersRepository) BindTeacher(req BindTeacherToSemesterRequest) error {
+	// Проверяем существование семестра
+	exists, err := r.Exists(req.SemesterID)
+	if err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.semesters.exists_check_failed")+": %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("%s", locales.GetMessage("errors.semesters.not_found"))
+	}
+
+	// Проверяем существование преподавателя
+	query := `SELECT 1 FROM teachers WHERE id = ?`
+	var teacherExists int
+	err = r.db.QueryRow(query, req.TeacherID).Scan(&teacherExists)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("%s", locales.GetMessage("errors.teachers.not_found"))
+		}
+		return fmt.Errorf(locales.GetMessage("errors.teachers.exists_check_failed")+": %w", err)
+	}
+
+	// Проверяем, не привязан ли уже преподаватель к семестру
+	checkQuery := `SELECT 1 FROM semester_teachers WHERE semester_id = ? AND teacher_id = ?`
+	var alreadyBound int
+	err = r.db.QueryRow(checkQuery, req.SemesterID, req.TeacherID).Scan(&alreadyBound)
+	if err == nil {
+		// Уже привязан - возвращаем успех
+		return nil
+	}
+	if err != sql.ErrNoRows {
+		return fmt.Errorf(locales.GetMessage("errors.semesters.bind_teacher_failed")+": %w", err)
+	}
+
+	// Привязываем преподавателя к семестру
+	insertQuery := `INSERT INTO semester_teachers (semester_id, teacher_id) VALUES (?, ?)`
+	_, err = r.db.Exec(insertQuery, req.SemesterID, req.TeacherID)
+	if err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.semesters.bind_teacher_failed")+": %w", err)
+	}
+
+	return nil
+}
+
+// UnbindTeacher отвязывает преподавателя от семестра
+func (r *SemestersRepository) UnbindTeacher(req UnbindTeacherFromSemesterRequest) error {
+	query := `DELETE FROM semester_teachers WHERE semester_id = ? AND teacher_id = ?`
+
+	result, err := r.db.Exec(query, req.SemesterID, req.TeacherID)
+	if err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.semesters.unbind_teacher_failed")+": %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf(locales.GetMessage("errors.semesters.unbind_teacher_failed")+": %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("%s", locales.GetMessage("errors.teachers.not_found"))
+	}
+
+	return nil
+}
+
+// GetAllTeachersForSemester получает всех преподавателей доступных для семестра (включая гостевых и архивированных)
+func (r *SemestersRepository) GetAllTeachersForSemester(semesterID int64) ([]Teacher, error) {
+	query := `
+		SELECT t.id, t.first_name, t.last_name, t.middle_name, t.direction_id, t.rate, t.isArchived, t.isGuest,
+		       d.name as direction_name,
+		       CASE WHEN st.teacher_id IS NOT NULL THEN 1 ELSE 0 END as is_bound
+		FROM teachers t
+		LEFT JOIN directions d ON t.direction_id = d.id
+		LEFT JOIN semester_teachers st ON t.id = st.teacher_id AND st.semester_id = ?
+		ORDER BY t.isArchived, t.last_name, t.first_name
+	`
+
+	rows, err := r.db.Query(query, semesterID)
+	if err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.semesters.get_teachers_failed")+": %w", err)
+	}
+	defer rows.Close()
+
+	var teachers []Teacher
+	for rows.Next() {
+		var teacher Teacher
+		var directionName sql.NullString
+		var isBound int
+		err := rows.Scan(
+			&teacher.ID,
+			&teacher.FirstName,
+			&teacher.LastName,
+			&teacher.MiddleName,
+			&teacher.DirectionID,
+			&teacher.Rate,
+			&teacher.IsArchived,
+			&teacher.IsGuest,
+			&directionName,
+			&isBound,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(locales.GetMessage("errors.teachers.scan_failed")+": %w", err)
+		}
+
+		if directionName.Valid {
+			teacher.DirectionName = directionName.String
+		}
+
+		teacher.IsBound = isBound == 1
+
+		teachers = append(teachers, teacher)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.teachers.iterate_failed")+": %w", err)
+	}
+
+	return teachers, nil
 }

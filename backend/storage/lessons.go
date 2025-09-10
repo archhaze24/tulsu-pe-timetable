@@ -423,3 +423,79 @@ func (r *LessonsRepository) getLessonTeachers(lessonID int64) ([]int64, []string
 
 	return teacherIDs, teacherNames, nil
 }
+
+// GetBySemesterID получает все занятия семестра со связанными данными
+func (r *LessonsRepository) GetBySemesterID(semesterID int64) ([]Lesson, error) {
+	query := `
+		SELECT l.id, l.semester_id, l.day_of_week, l.start_time, l.end_time, l.direction_id, l.teacher_count,
+		       s.name as semester_name, d.name as direction_name
+		FROM lessons l
+		LEFT JOIN semesters s ON l.semester_id = s.id
+		LEFT JOIN directions d ON l.direction_id = d.id
+		WHERE l.semester_id = ?
+		ORDER BY l.day_of_week, l.start_time
+	`
+
+	rows, err := r.db.Query(query, semesterID)
+	if err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_all_failed")+": %w", err)
+	}
+	defer rows.Close()
+
+	var lessons []Lesson
+	for rows.Next() {
+		var lesson Lesson
+		var semesterName, directionName sql.NullString
+		var teacherCount sql.NullInt64
+
+		err := rows.Scan(
+			&lesson.ID,
+			&lesson.SemesterID,
+			&lesson.DayOfWeek,
+			&lesson.StartTime,
+			&lesson.EndTime,
+			&lesson.DirectionID,
+			&teacherCount,
+			&semesterName,
+			&directionName,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.scan_failed")+": %w", err)
+		}
+
+		if teacherCount.Valid {
+			count := int(teacherCount.Int64)
+			lesson.TeacherCount = &count
+		}
+
+		if semesterName.Valid {
+			lesson.SemesterName = semesterName.String
+		}
+		if directionName.Valid {
+			lesson.DirectionName = directionName.String
+		}
+
+		// Получаем связанные факультеты и преподавателей для каждого занятия
+		facultyIDs, facultyNames, err := r.getLessonFaculties(lesson.ID)
+		if err != nil {
+			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_faculties_failed")+": %w", err)
+		}
+		lesson.FacultyIDs = facultyIDs
+		lesson.FacultyNames = facultyNames
+
+		teacherIDs, teacherNames, err := r.getLessonTeachers(lesson.ID)
+		if err != nil {
+			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_teachers_failed")+": %w", err)
+		}
+		lesson.TeacherIDs = teacherIDs
+		lesson.TeacherNames = teacherNames
+
+		lessons = append(lessons, lesson)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.iterate_failed")+": %w", err)
+	}
+
+	return lessons, nil
+}
