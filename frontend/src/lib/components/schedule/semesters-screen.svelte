@@ -1,16 +1,27 @@
 <script lang="ts">
   import { t } from 'svelte-i18n'
   import { navigate } from '../../stores/router'
-  import { semestersStore, type Semester } from '../../stores/semesters'
+  import { semestersStore, type Semester, loadSemesters } from '../../stores/semesters'
+  import { onMount } from 'svelte'
 
   const back = () => navigate('home')
   const createNew = () => navigate('semester_edit', { id: 0 })
   const edit = (s: Semester) => navigate('semester_edit', { id: s.id })
   const open = (s: Semester) => navigate('schedule', { id: s.id })
 
-  function formatRange(s: Semester): string {
-    return `${s.startDate} — ${s.endDate}`
+  function onlyDate(value: string): string {
+    if (!value) return ''
+    if (value.includes('T')) return value.split('T')[0]
+    if (value.includes(' ')) return value.split(' ')[0]
+    return value.slice(0, 10)
   }
+  function formatRange(s: Semester): string {
+    return `${onlyDate(s.startDate)} — ${onlyDate(s.endDate)}`
+  }
+
+  onMount(() => {
+    loadSemesters()
+  })
 </script>
 
 <div class="max-w-2xl w-full px-6 py-10">

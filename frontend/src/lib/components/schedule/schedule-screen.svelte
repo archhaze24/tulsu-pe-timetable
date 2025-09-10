@@ -3,13 +3,19 @@
   import { facultiesStore } from '../../stores/faculties'
   import { directionsStore } from '../../stores/directions'
   import { teachersStore, formatTeacherName } from '../../stores/teachers'
-  import { lessonsStore, semestersStore, timeSlotsStore, addTimeSlot, addLesson, deleteLesson, updateLesson, deleteTimeSlot, type Lesson, type TimeSlot } from '../../stores/semesters'
+  import { semesterTeachersStore, loadSemesterTeachers, bindTeacherToSemester, unbindTeacherFromSemester, type SemesterTeacher } from '../../stores/semester-teachers'
+  import { lessonsStore, semestersStore, addLesson, deleteLesson, updateLesson, loadLessonsBySemester, loadSemesters, type Lesson } from '../../stores/semesters'
   import { navigate, route } from '../../stores/router'
   import { onDestroy } from 'svelte'
+  import { get } from 'svelte/store'
 
   const back = () => navigate('semesters')
 
-  $: semesterId = ($route.params?.id as number) || $semestersStore[0]?.id
+  $: semesterId = Number($route.params?.id ?? 0) || $semestersStore[0]?.id || 0
+  $: if (semesterId) { loadSemesterTeachers(semesterId) }
+  $: if (semesterId) { loadLessonsBySemester(semesterId) }
+  // Ensure semesters list is present if user navigates directly
+  $: if (!$semestersStore || $semestersStore.length === 0) { loadSemesters() }
   $: semester = $semestersStore.find(s => s.id === semesterId)
 
   const days: { key: number; label: string }[] = [
@@ -23,14 +29,25 @@
   ]
 
   $: lessons = $lessonsStore.filter(l => l.semesterId === semesterId)
+  // Additional slots created before assigning any lesson
+  let extraSlots: Set<string> = new Set()
+  function slotKey(semId: number, day: number, slot: string): string { return `${semId}:${day}:${slot}` }
   $: dayToSlots = new Map<number, string[]>(
-    days.map(d => [
-      d.key,
-      $timeSlotsStore
-        .filter(t => t.semesterId === semesterId && t.dayOfWeek === d.key)
-        .map(t => `${t.startTime}-${t.endTime}`)
-        .sort()
-    ])
+    days.map(d => {
+      const fromLessons = Array.from(new Set(
+        lessons
+          .filter(l => l.dayOfWeek === d.key)
+          .map(l => `${l.startTime}-${l.endTime}`)
+      ))
+      const fromExtras = Array.from(new Set(
+        Array.from(extraSlots)
+          .filter(s => s.startsWith(`${semesterId}:${d.key}:`))
+          .map(s => s.split(':')[2])
+      ))
+      const union = Array.from(new Set([...fromLessons, ...fromExtras]))
+      union.sort()
+      return [d.key, union]
+    })
   )
 
   function cellLessons(day: number, slot: string): Lesson[] {
@@ -65,9 +82,26 @@
     alert('Расписание сохранено')
   }
 
-  // Add guest teacher action (stub)
-  function addGuestTeacher() {
-    alert('Добавление гостевого преподавателя будет реализовано')
+  // Manage teachers modal
+  let manageOpen = false
+  let teacherSearch = ''
+  function openManage() { manageOpen = true; loadSemesterTeachers(semesterId) }
+  function closeManage() { manageOpen = false }
+  $: filteredSemesterTeachersList = (() => {
+    const q = teacherSearch.trim().toLowerCase()
+    const list = $semesterTeachersStore
+    if (!q) return list
+    return list.filter(t => `${t.lastName} ${t.firstName} ${t.middleName ?? ''}`.toLowerCase().includes(q))
+  })()
+  async function toggleBind(st: SemesterTeacher) {
+    if (st.isBound) {
+      await unbindTeacherFromSemester(semesterId, st.id)
+    } else {
+      const ok = await bindTeacherToSemester(semesterId, st.id)
+      if (!ok) {
+        alert($t('guest_only_one_semester'))
+      }
+    }
   }
 
   // Add time slot popover (anchored to header button)
@@ -89,12 +123,13 @@
   function closeAddSlot() { addSlotPopover = null }
   function createTimeSlot() {
     if (!semesterId) return
-    const exists = $timeSlotsStore.some(t => t.semesterId === semesterId && t.dayOfWeek === (addSlotDay as any) && t.startTime === addSlotStart && t.endTime === addSlotEnd)
-    if (exists) {
+    const slot = `${addSlotStart}-${addSlotEnd}`
+    const current = dayToSlots.get(addSlotDay) || []
+    if (current.includes(slot)) {
       alert($t('slot_exists'))
       return
     }
-    addTimeSlot({ semesterId, dayOfWeek: addSlotDay as any, startTime: addSlotStart, endTime: addSlotEnd })
+    extraSlots.add(slotKey(semesterId, addSlotDay as any, slot))
     addSlotPopover = null
   }
 
@@ -102,15 +137,16 @@
     return cellLessons(day, slot).find(l => l.teacherIds.includes(teacherId))
   }
 
-  function toggleTeacherOnCell(day: number, slot: string, teacherId: number) {
+  async function toggleTeacherOnCell(day: number, slot: string, teacherId: number) {
     const existing = teacherLesson(day, slot, teacherId)
     const [start, end] = slot.split('-')
     if (existing) {
-      deleteLesson(existing.id)
+      await deleteLesson(existing.id)
       return
     }
-    const directionId = $directionsStore.find(d => d.id === ($teachersStore.find(t => t.id === teacherId)?.directionId || 0))?.id || ($directionsStore[0]?.id || 1)
-    addLesson({
+    const teacherRec = get(semesterTeachersStore).find(t => t.id === teacherId)
+    const directionId = teacherRec?.directionId || (get(directionsStore)[0]?.id || 1)
+    await addLesson({
       semesterId,
       dayOfWeek: day as any,
       startTime: start,
@@ -136,7 +172,7 @@
     rowFacultyMap.set(key, valid)
     return valid
   }
-  function toggleRowFaculty(day: number, slot: string, facultyId: number) {
+  async function toggleRowFaculty(day: number, slot: string, facultyId: number) {
     const key = rowKey(day, slot)
     const current = facultiesForRow(day, slot)
     const exists = current.includes(facultyId)
@@ -147,9 +183,7 @@
     const [start, end] = slot.split('-')
     const affected = $lessonsStore.filter(l => l.semesterId === semesterId && l.dayOfWeek === day && l.startTime === start && l.endTime === end)
     if (affected.length === 0) return
-    affected.forEach(l => {
-      updateLesson(l.id, { facultyIds: next })
-    })
+    await Promise.all(affected.map(l => updateLesson(l.id, { facultyIds: next })))
   }
   // Single floating faculty popover anchored to the "+" button
   let facultyPopover: { day: number; slot: string; pos: Point } | null = null
@@ -171,7 +205,7 @@
   function rateInfo(teacherId: number) {
     const RATE_FULL = 12
     const assigned = $lessonsStore.filter(l => l.semesterId === semesterId && l.teacherIds.includes(teacherId)).length
-    const teacher = $teachersStore.find(t => t.id === teacherId)
+    const teacher = $semesterTeachersStore.find(t => t.id === teacherId)
     if (!teacher) return null
     const target = Math.round(teacher.rate * RATE_FULL)
     const remaining = target - assigned
@@ -193,16 +227,19 @@
   // Helpers for time slots
   function parseSlot(slot: string): { start: string; end: string } {
     const [start, end] = slot.split('-')
-    return { start, end }
+    const norm = (s: string) => {
+      const parts = s.split(':')
+      if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+      return s
+    }
+    return { start: norm(start), end: norm(end) }
   }
-  function findTimeSlot(day: number, slot: string): TimeSlot | undefined {
+  async function deleteTimeSlotRow(day: number, slot: string) {
     const { start, end } = parseSlot(slot)
-    return $timeSlotsStore.find(t => t.semesterId === semesterId && t.dayOfWeek === (day as any) && t.startTime === start && t.endTime === end)
-  }
-  function deleteTimeSlotRow(day: number, slot: string) {
-    const ts = findTimeSlot(day, slot)
-    if (!ts) return
-    deleteTimeSlot(ts.id)
+    const affected = $lessonsStore.filter(l => l.semesterId === semesterId && l.dayOfWeek === (day as any) && l.startTime === start && l.endTime === end)
+    await Promise.all(affected.map(l => deleteLesson(l.id)))
+    // remove extra-only slot
+    extraSlots.delete(slotKey(semesterId, day as any, slot))
   }
 </script>
 
@@ -216,7 +253,7 @@
     </div>
     <div class="flex items-center gap-2">
       <button class="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 text-xs" on:click={(e) => openAddSlot(e)}>{$t('add_slot')}</button>
-      <button class="rounded-md bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 text-xs" on:click={addGuestTeacher}>{$t('add_guest')}</button>
+      <button class="rounded-md bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 text-xs" on:click={openManage}>{$t('assign_teachers')}</button>
       <button class="rounded-md bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white px-3 py-2 text-xs" on:click={saveSchedule}>{$t('save_schedule')}</button>
       <button class="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 text-xs" on:click={exportXLSX}>{$t('export_xlsx')}</button>
     </div>
@@ -256,7 +293,7 @@
           <th class="sticky left-0 z-20 bg-white dark:bg-slate-900 text-center p-2 border-b border-slate-200 dark:border-slate-700 w-12">{$t('day')}</th>
           <th class="sticky left-0 z-20 bg-white dark:bg-slate-900 text-center p-2 border-b border-slate-200 dark:border-slate-700 w-24">{$t('time')}</th>
           <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-left w-24">{$t('faculty')}</th>
-          {#each $teachersStore as teacher}
+          {#each $semesterTeachersStore.filter(t => t.isBound) as teacher}
             <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-left w-20">
               <div class="text-xs text-slate-500 dark:text-slate-400">{($directionsStore.find(d => d.id === teacher.directionId)?.name) || ''}</div>
               <div class="flex items-start gap-1">
@@ -308,7 +345,7 @@
                   </div>
                 {/key}
               </td>
-              {#each $teachersStore as teacher}
+              {#each $semesterTeachersStore.filter(t => t.isBound) as teacher}
                 <td class="p-2 border-b border-slate-200 dark:border-slate-800 w-20">
                   {#key lessonsVersion + '-' + cellLessons(d.key, slot).map(l => l.id).join('-')}
                     <button
@@ -331,6 +368,40 @@
       </tbody>
     </table>
   </div>
+  {#if manageOpen}
+    <div class="fixed inset-0 z-30 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40" role="button" tabindex="0" aria-label={$t('close')} on:click={closeManage} on:keydown={(e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeManage(); } }} />
+      <div class="relative w-[720px] max-w-[92vw] max-h-[80vh] overflow-auto rounded-lg bg-white dark:bg-slate-900 ring-1 ring-black/10 dark:ring-white/10 p-4 shadow-xl">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-sm font-medium">{$t('assign_teachers')}</div>
+          <button class="px-2 py-1 text-xs rounded bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600" on:click={closeManage}>{$t('close')}</button>
+        </div>
+        <div class="mb-2">
+          <input class="w-full rounded bg-white dark:bg-slate-800 px-2 py-1 ring-1 ring-slate-300 dark:ring-white/10 text-sm" placeholder={$t('search_placeholder')} bind:value={teacherSearch} />
+        </div>
+        <div class="grid grid-cols-1 gap-1">
+          {#each filteredSemesterTeachersList as st}
+            <div class="flex items-center justify-between px-2 py-2 rounded ring-1 ring-black/10 dark:ring-white/10">
+              <div class="min-w-0">
+                <div class="text-sm font-medium truncate" title={`${st.lastName} ${st.firstName} ${st.middleName ?? ''}`}>{st.lastName} {st.firstName} {st.middleName}</div>
+                <div class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                  <span>{st.directionName || ''}</span>
+                  {#if st.isGuest}<span class="px-1 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Гость</span>{/if}
+                  {#if st.isArchived}<span class="px-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">Архив</span>{/if}
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-slate-500 dark:text-slate-400">{st.isBound ? $t('assigned') : $t('empty')}</span>
+                <button class="px-2 py-1 text-xs rounded {st.isBound ? 'bg-rose-600/90 hover:bg-rose-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}" on:click={() => toggleBind(st)}>
+                  {st.isBound ? $t('delete') : $t('add_teacher')}
+                </button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    </div>
+  {/if}
   {#if facultyPopover}
     <div class="fixed z-30 w-[360px] rounded-lg bg-white dark:bg-slate-900 ring-1 ring-black/10 dark:ring-white/10 p-3 shadow-xl" style={`left:${facultyPopover.pos.x}px; top:${facultyPopover.pos.y}px`} role="dialog" aria-modal="true">
       <div class="text-xs text-slate-600 dark:text-slate-400 mb-2">{$t('add_faculty')}</div>

@@ -15,20 +15,21 @@
   $: current = $semestersStore.find(s => s.id === id)
   $: if (current && lastInitId !== current.id) {
     name = current.name
-    startDate = current.startDate
-    endDate = current.endDate
+    // Ensure date inputs receive only YYYY-MM-DD
+    startDate = (current.startDate || '').split('T')[0].split(' ')[0]
+    endDate = (current.endDate || '').split('T')[0].split(' ')[0]
     lastInitId = current.id
   }
 
   const back = () => navigate('semesters')
 
-  function save() {
+  async function save() {
     if (current) {
-      updateSemester(current.id, { name, startDate, endDate })
-      navigate('semesters')
+      const updated = await updateSemester(current.id, { name, startDate, endDate })
+      if (updated) navigate('semesters')
     } else {
-      const created = addSemester({ name, startDate, endDate })
-      navigate('schedule', { id: created.id })
+      const created = await addSemester({ name, startDate, endDate })
+      if (created) navigate('schedule', { id: created.id })
     }
   }
 </script>
