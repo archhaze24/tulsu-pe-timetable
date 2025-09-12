@@ -8,6 +8,8 @@
   import { navigate, route } from '../../stores/router'
   import { onDestroy } from 'svelte'
   import { get } from 'svelte/store'
+  import { refreshDirections } from '../../stores/directions'
+  import { refreshFaculties } from '../../stores/faculties'
 
   const back = () => navigate('semesters')
 
@@ -16,6 +18,9 @@
   $: if (semesterId) { loadLessonsBySemester(semesterId) }
   // Ensure semesters list is present if user navigates directly
   $: if (!$semestersStore || $semestersStore.length === 0) { loadSemesters() }
+  // Ensure directions & faculties are loaded for slot creation and rendering
+  $: if (!$directionsStore || $directionsStore.length === 0) { refreshDirections() }
+  $: if (!$facultiesStore || $facultiesStore.length === 0) { refreshFaculties() }
   $: semester = $semestersStore.find(s => s.id === semesterId)
 
   const days: { key: number; label: string }[] = [
@@ -32,6 +37,10 @@
   // Additional slots created before assigning any lesson
   let extraSlots: Set<string> = new Set()
   function slotKey(semId: number, day: number, slot: string): string { return `${semId}:${day}:${slot}` }
+  function parseSlotKey(key: string): { semesterId: number; day: number; slot: string } {
+    const [semStr, dayStr, ...slotParts] = String(key ?? '').split(':')
+    return { semesterId: Number(semStr), day: Number(dayStr), slot: slotParts.join(':') }
+  }
   $: dayToSlots = new Map<number, string[]>(
     days.map(d => {
       const fromLessons = Array.from(new Set(
@@ -42,10 +51,10 @@
       const fromExtras = Array.from(new Set(
         Array.from(extraSlots)
           .filter(s => s.startsWith(`${semesterId}:${d.key}:`))
-          .map(s => s.split(':')[2])
+          .map(s => normalizeSlot(parseSlotKey(s).slot))
       ))
       const union = Array.from(new Set([...fromLessons, ...fromExtras]))
-      union.sort()
+      union.sort(compareSlots)
       return [d.key, union]
     })
   )
@@ -77,9 +86,11 @@
     alert('Экспорт XLSX будет реализован на бэкенде')
   }
 
-  // Save schedule action (stub – integrate with backend via Wails later)
-  function saveSchedule() {
-    alert('Расписание сохранено')
+  // Save schedule action: force reload from backend to ensure persisted state is shown
+  async function saveSchedule() {
+    if (!semesterId) return
+    await loadLessonsBySemester(semesterId)
+    alert('Расписание синхронизировано')
   }
 
   // Manage teachers modal
@@ -123,13 +134,15 @@
   function closeAddSlot() { addSlotPopover = null }
   function createTimeSlot() {
     if (!semesterId) return
-    const slot = `${addSlotStart}-${addSlotEnd}`
+    const slot = normalizeSlot(`${addSlotStart}-${addSlotEnd}`)
     const current = dayToSlots.get(addSlotDay) || []
     if (current.includes(slot)) {
       alert($t('slot_exists'))
       return
     }
     extraSlots.add(slotKey(semesterId, addSlotDay as any, slot))
+    // Force reactivity for Set mutation
+    extraSlots = new Set(extraSlots)
     addSlotPopover = null
   }
 
@@ -138,24 +151,53 @@
   }
 
   async function toggleTeacherOnCell(day: number, slot: string, teacherId: number) {
+    console.log(`toggleTeacherOnCell: day=${day}, slot=${slot}, teacherId=${teacherId}`)
     const existing = teacherLesson(day, slot, teacherId)
     const [start, end] = slot.split('-')
+    console.log(`toggleTeacherOnCell: start=${start}, end=${end}, existing=${!!existing}`)
+
     if (existing) {
+      console.log('toggleTeacherOnCell: deleting existing lesson')
       await deleteLesson(existing.id)
       return
     }
+
     const teacherRec = get(semesterTeachersStore).find(t => t.id === teacherId)
-    const directionId = teacherRec?.directionId || (get(directionsStore)[0]?.id || 1)
-    await addLesson({
+
+    // Determine a valid directionId: prefer teacher's, otherwise first available direction after refresh
+    let directionId = teacherRec?.directionId
+    const dirList = get(directionsStore)
+    const hasValidTeacherDirection = directionId && dirList.some(d => d.id === directionId)
+    if (!hasValidTeacherDirection) {
+      await refreshDirections()
+    }
+    const dirList2 = get(directionsStore)
+    if (!hasValidTeacherDirection) {
+      directionId = dirList2[0]?.id
+    }
+    if (!directionId) {
+      alert($t('select_direction'))
+      return
+    }
+
+    const facultyIds = facultiesForRow(day, slot)
+
+    console.log(`toggleTeacherOnCell: teacherRec=${JSON.stringify(teacherRec)}, directionId=${directionId}, facultyIds=${facultyIds}`)
+
+    const lessonData = {
       semesterId,
       dayOfWeek: day as any,
       startTime: start,
       endTime: end,
       directionId,
       teacherIds: [teacherId],
-      facultyIds: facultiesForRow(day, slot),
+      facultyIds: facultyIds,
       teacherCount: 1
-    })
+    }
+
+    console.log('toggleTeacherOnCell: calling addLesson with data:', lessonData)
+    const result = await addLesson(lessonData)
+    console.log('toggleTeacherOnCell: addLesson result:', result)
   }
 
   // Faculties per row (day+slot) mock management
@@ -226,13 +268,33 @@
 
   // Helpers for time slots
   function parseSlot(slot: string): { start: string; end: string } {
-    const [start, end] = slot.split('-')
-    const norm = (s: string) => {
+    const raw = String(slot ?? '')
+    const [startRaw, endRaw] = raw.split('-')
+    const norm = (v?: string) => {
+      const s = String(v ?? '')
       const parts = s.split(':')
-      if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+      if (parts.length >= 2) return `${(parts[0] ?? '').padStart(2, '0')}:${(parts[1] ?? '').padStart(2, '0')}`
       return s
     }
-    return { start: norm(start), end: norm(end) }
+    return { start: norm(startRaw), end: norm(endRaw) }
+  }
+
+  function normalizeSlot(slot: string): string {
+    const { start, end } = parseSlot(slot)
+    return `${start}-${end}`
+  }
+
+  function compareSlots(a: string, b: string): number {
+    const toMinutes = (t?: string) => {
+      const s = String(t ?? '')
+      const [h, m] = s.split(':')
+      const hn = Number(h)
+      const mn = Number(m)
+      return (Number.isFinite(hn) ? hn : 0) * 60 + (Number.isFinite(mn) ? mn : 0)
+    }
+    const pa = parseSlot(a)
+    const pb = parseSlot(b)
+    return (toMinutes(pa.start) - toMinutes(pb.start)) || (toMinutes(pa.end) - toMinutes(pb.end))
   }
   async function deleteTimeSlotRow(day: number, slot: string) {
     const { start, end } = parseSlot(slot)
@@ -240,6 +302,8 @@
     await Promise.all(affected.map(l => deleteLesson(l.id)))
     // remove extra-only slot
     extraSlots.delete(slotKey(semesterId, day as any, slot))
+    // Force reactivity for Set mutation
+    extraSlots = new Set(extraSlots)
   }
 </script>
 
@@ -354,7 +418,7 @@
                       title={teacherLesson(d.key, slot, teacher.id) ? 'Снять назначение' : 'Назначить'}
                       aria-label={teacherLesson(d.key, slot, teacher.id) ? 'Снять назначение' : 'Назначить'}
                     >
-                      +
+                      {teacherLesson(d.key, slot, teacher.id) ? '✓' : '+'}
                     </button>
                   {/key}
                 </td>
