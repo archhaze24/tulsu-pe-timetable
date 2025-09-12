@@ -192,8 +192,9 @@ export async function loadLessonsBySemester(semesterId: number): Promise<void> {
 }
 
 export async function addLesson(data: Omit<Lesson, 'id'>): Promise<Lesson | null> {
+  console.log('addLesson called with data:', data)
   try {
-    const resp = await App.CreateLesson({
+    const requestData = {
       semester_id: data.semesterId,
       day_of_week: data.dayOfWeek,
       start_time: data.startTime,
@@ -202,16 +203,27 @@ export async function addLesson(data: Omit<Lesson, 'id'>): Promise<Lesson | null
       teacher_count: data.teacherCount,
       faculty_ids: data.facultyIds ?? [],
       teacher_ids: data.teacherIds ?? []
-    })
+    }
+    console.log('Sending CreateLesson request:', requestData)
+
+    const resp = await App.CreateLesson(requestData)
+
+    console.log('CreateLesson response:', resp)
+
     if (resp.error) {
       console.error('CreateLesson error:', resp.error)
+      alert(`Ошибка при создании занятия: ${resp.error}`)
       return null
     }
+
     const created = mapLessonFromBackend(resp.data)
-    lessonsStore.update(list => [...list, created])
+    console.log('Created lesson:', created)
+    // Ensure frontend reflects DB truth
+    await loadLessonsBySemester(data.semesterId)
     return created
   } catch (e) {
     console.error('CreateLesson failed:', e)
+    alert(`Ошибка при создании занятия: ${e}`)
     return null
   }
 }
@@ -237,7 +249,8 @@ export async function updateLesson(id: number, changes: Partial<Omit<Lesson, 'id
       return null
     }
     const updated = mapLessonFromBackend(resp.data)
-    lessonsStore.update(list => list.map(l => (l.id === id ? updated : l)))
+    // Reload to stay consistent with DB (links + derived fields)
+    await loadLessonsBySemester(next.semesterId)
     return updated
   } catch (e) {
     console.error('UpdateLesson failed:', e)
@@ -247,12 +260,18 @@ export async function updateLesson(id: number, changes: Partial<Omit<Lesson, 'id
 
 export async function deleteLesson(id: number): Promise<boolean> {
   try {
+    const existing = get(lessonsStore).find(l => l.id === id)
+    const semId = existing?.semesterId
     const resp = await App.DeleteLesson(id)
     if (resp.error) {
       console.error('DeleteLesson error:', resp.error)
       return false
     }
+    // Remove locally and then reload this semester from DB to avoid desync
     lessonsStore.update(list => list.filter(l => l.id !== id))
+    if (semId) {
+      await loadLessonsBySemester(semId)
+    }
     return Boolean(resp.data)
   } catch (e) {
     console.error('DeleteLesson failed:', e)

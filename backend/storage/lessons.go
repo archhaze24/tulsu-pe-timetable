@@ -3,6 +3,7 @@ package storage
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"tulsu-pe-timetable/backend/locales"
 )
 
@@ -18,9 +19,14 @@ func NewLessonsRepository(db *sql.DB) *LessonsRepository {
 
 // Create создает новое занятие
 func (r *LessonsRepository) Create(req CreateLessonRequest) (*Lesson, error) {
+	// Логируем входные данные
+	log.Printf("CreateLesson: semester_id=%d, day_of_week=%d, start_time=%s, end_time=%s, direction_id=%d, teacher_count=%v, faculty_ids=%v, teacher_ids=%v",
+		req.SemesterID, req.DayOfWeek, req.StartTime, req.EndTime, req.DirectionID, req.TeacherCount, req.FacultyIDs, req.TeacherIDs)
+
 	// Начинаем транзакцию
 	tx, err := r.db.Begin()
 	if err != nil {
+		log.Printf("CreateLesson: failed to begin transaction: %v", err)
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_failed")+": %w", err)
 	}
 	defer tx.Rollback()
@@ -31,42 +37,58 @@ func (r *LessonsRepository) Create(req CreateLessonRequest) (*Lesson, error) {
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 
-	// Use sql.NullInt64 for optional teacher_count to avoid driver issues with pointers
-	var teacherCount sql.NullInt64
+	// Передаем либо конкретное значение teacher_count, либо NULL
+	var teacherCountParam interface{}
 	if req.TeacherCount != nil {
-		teacherCount = sql.NullInt64{Int64: int64(*req.TeacherCount), Valid: true}
+		teacherCountParam = int64(*req.TeacherCount)
+		log.Printf("CreateLesson: teacher_count set to %d", *req.TeacherCount)
+	} else {
+		teacherCountParam = nil
+		log.Printf("CreateLesson: teacher_count is nil")
 	}
-	result, err := tx.Exec(query, req.SemesterID, req.DayOfWeek, req.StartTime, req.EndTime, req.DirectionID, teacherCount)
+
+	result, err := tx.Exec(query, req.SemesterID, req.DayOfWeek, req.StartTime, req.EndTime, req.DirectionID, teacherCountParam)
 	if err != nil {
+		log.Printf("CreateLesson: failed to execute INSERT: %v", err)
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_failed")+": %w", err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
+		log.Printf("CreateLesson: failed to get last insert id: %v", err)
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_id_failed")+": %w", err)
 	}
+	log.Printf("CreateLesson: lesson created with id=%d", id)
 
 	// Добавляем связи с факультетами
+	log.Printf("CreateLesson: adding %d faculty links", len(req.FacultyIDs))
 	for _, facultyID := range req.FacultyIDs {
+		log.Printf("CreateLesson: linking lesson %d with faculty %d", id, facultyID)
 		_, err := tx.Exec("INSERT INTO lesson_faculties (lesson_id, faculty_id) VALUES (?, ?)", id, facultyID)
 		if err != nil {
+			log.Printf("CreateLesson: failed to create faculty link: %v", err)
 			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_faculty_link_failed")+": %w", err)
 		}
 	}
 
 	// Добавляем связи с преподавателями
+	log.Printf("CreateLesson: adding %d teacher links", len(req.TeacherIDs))
 	for _, teacherID := range req.TeacherIDs {
+		log.Printf("CreateLesson: linking lesson %d with teacher %d", id, teacherID)
 		_, err := tx.Exec("INSERT INTO lesson_teachers (lesson_id, teacher_id) VALUES (?, ?)", id, teacherID)
 		if err != nil {
+			log.Printf("CreateLesson: failed to create teacher link: %v", err)
 			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_teacher_link_failed")+": %w", err)
 		}
 	}
 
 	// Подтверждаем транзакцию
 	if err := tx.Commit(); err != nil {
+		log.Printf("CreateLesson: failed to commit transaction: %v", err)
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.commit_failed")+": %w", err)
 	}
 
+	log.Printf("CreateLesson: successfully created lesson with id=%d", id)
 	return &Lesson{
 		ID:           id,
 		SemesterID:   req.SemesterID,
@@ -237,12 +259,14 @@ func (r *LessonsRepository) Update(req UpdateLessonRequest) (*Lesson, error) {
 		WHERE id = ?
 	`
 
-	// Use sql.NullInt64 for optional teacher_count on update as well
-	var teacherCount sql.NullInt64
+	// Передаем либо конкретное значение teacher_count, либо NULL
+	var teacherCountParam interface{}
 	if req.TeacherCount != nil {
-		teacherCount = sql.NullInt64{Int64: int64(*req.TeacherCount), Valid: true}
+		teacherCountParam = int64(*req.TeacherCount)
+	} else {
+		teacherCountParam = nil
 	}
-	result, err := tx.Exec(query, req.SemesterID, req.DayOfWeek, req.StartTime, req.EndTime, req.DirectionID, teacherCount, req.ID)
+	result, err := tx.Exec(query, req.SemesterID, req.DayOfWeek, req.StartTime, req.EndTime, req.DirectionID, teacherCountParam, req.ID)
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.update_failed")+": %w", err)
 	}
