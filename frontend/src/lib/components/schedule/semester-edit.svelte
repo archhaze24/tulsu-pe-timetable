@@ -2,6 +2,7 @@
   import { t } from 'svelte-i18n'
   import { navigate } from '../../stores/router'
   import { semestersStore, addSemester, updateSemester, type Semester } from '../../stores/semesters'
+  import { logUiEvent } from '../../stores/logger'
 
   export let id: number | undefined
 
@@ -21,14 +22,16 @@
     lastInitId = current.id
   }
 
-  const back = () => navigate('semesters')
+  const back = () => { logUiEvent('click:back', { screen: 'semester_edit' }); navigate('semesters') }
 
   async function save() {
     if (current) {
       const updated = await updateSemester(current.id, { name, startDate, endDate })
+      logUiEvent('click:save_semester', { id: current.id, name, startDate, endDate, ok: updated })
       if (updated) navigate('semesters')
     } else {
       const created = await addSemester({ name, startDate, endDate })
+      logUiEvent('click:create_semester_submit', { name, startDate, endDate, createdId: created?.id })
       if (created) navigate('schedule', { id: created.id })
     }
   }

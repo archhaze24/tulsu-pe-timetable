@@ -3,11 +3,12 @@
   import { navigate } from '../../stores/router'
   import { semestersStore, type Semester, loadSemesters } from '../../stores/semesters'
   import { onMount } from 'svelte'
+  import { logUiEvent } from '../../stores/logger'
 
-  const back = () => navigate('home')
-  const createNew = () => navigate('semester_edit', { id: 0 })
-  const edit = (s: Semester) => navigate('semester_edit', { id: s.id })
-  const open = (s: Semester) => navigate('schedule', { id: s.id })
+  const back = () => { logUiEvent('click:back', { screen: 'semesters' }); navigate('home') }
+  const createNew = () => { logUiEvent('click:create_semester', {}); navigate('semester_edit', { id: 0 }) }
+  const edit = (s: Semester) => { logUiEvent('click:edit_semester', { id: s.id }); navigate('semester_edit', { id: s.id }) }
+  const open = (s: Semester) => { logUiEvent('click:open_schedule', { semesterId: s.id }); navigate('schedule', { id: s.id }) }
 
   function onlyDate(value: string): string {
     if (!value) return ''
@@ -32,7 +33,7 @@
   <div class="flex items-center justify-between gap-3 mb-4">
     <h2 class="text-2xl font-semibold">{$t('semesters')}</h2>
     <div class="flex items-center gap-2">
-      <button class="inline-flex items-center rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 h-10 px-4 text-sm font-medium shadow-sm ring-1 ring-black/5 transition dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:active:bg-slate-700 dark:ring-white/10" on:click={() => navigate('semesters_archive')}>
+      <button class="inline-flex items-center rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 h-10 px-4 text-sm font-medium shadow-sm ring-1 ring-black/5 transition dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:active:bg-slate-700 dark:ring-white/10" on:click={() => { logUiEvent('click:open_semesters_archive', {}); navigate('semesters_archive') }}>
         {$t('archive')}
       </button>
       <button class="inline-flex items-center rounded-md bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white h-10 px-4 text-sm font-medium shadow-sm ring-1 ring-black/5 transition" on:click={createNew}>

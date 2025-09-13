@@ -3,8 +3,9 @@
   import { onMount } from 'svelte'
   import { navigate } from '../../stores/router'
   import { fetchArchivedDirections, restoreDirection, type Direction } from '../../stores/directions'
+  import { logUiEvent } from '../../stores/logger'
 
-  const back = () => navigate('directions')
+  const back = () => { logUiEvent('click:back', { screen: 'directions_archive' }); navigate('directions') }
   let archived: Direction[] = []
 
   async function load(): Promise<void> {
@@ -13,6 +14,7 @@
 
   async function onRestore(id: number): Promise<void> {
     const ok = await restoreDirection(id)
+    logUiEvent('click:restore_direction', { id, ok })
     if (ok) archived = archived.filter(d => d.id !== id)
   }
 

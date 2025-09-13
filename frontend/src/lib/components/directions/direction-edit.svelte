@@ -4,8 +4,9 @@
   import { teachersStore, type Teacher, formatTeacherName, updateTeacher } from '../../stores/teachers'
   import { navigate, route } from '../../stores/router'
   import { derived } from 'svelte/store'
+  import { logUiEvent } from '../../stores/logger'
 
-  const back = () => navigate('directions')
+  const back = () => { logUiEvent('click:back', { screen: 'direction_edit' }); navigate('directions') }
   const dirId = derived(route, ($route) => Number($route.params?.id ?? 0))
   const direction = derived([directionsStore, dirId], ([$dirs, $id]) => $dirs.find(d => d.id === $id))
 
@@ -29,8 +30,10 @@
     const n = nameDraft.trim()
     if (n.length === 0) return
     if ($direction) {
+      logUiEvent('click:save_direction', { id: $direction.id, name: n })
       updateDirection($direction.id, { name: n })
     } else {
+      logUiEvent('click:create_direction_submit', { name: n })
       createDirection(n)
     }
     back()
@@ -48,8 +51,10 @@
   const toggle = (teacher: Teacher) => {
     if (!$direction) return
     if (teacher.directionId === $direction.id) {
+      logUiEvent('click:unassign_teacher_direction', { teacherId: teacher.id, directionId: $direction.id })
       updateTeacher(teacher.id, { directionId: 0 })
     } else {
+      logUiEvent('click:assign_teacher_direction', { teacherId: teacher.id, directionId: $direction.id })
       updateTeacher(teacher.id, { directionId: $direction.id })
     }
   }
