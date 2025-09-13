@@ -56,6 +56,8 @@ export function GetTeachers():Promise<app_services.ApiResponse___tulsu_pe_timeta
 
 export function GetTeachersByArchived(arg1:boolean):Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Teacher_>;
 
+export function LogClientEvent(arg1:string,arg2:Record<string, any>):Promise<app_services.ApiResponse_bool_>;
+
 export function RestoreDirection(arg1:number):Promise<app_services.ApiResponse_bool_>;
 
 export function RestoreFaculty(arg1:number):Promise<app_services.ApiResponse_bool_>;

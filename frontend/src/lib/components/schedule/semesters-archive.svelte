@@ -3,8 +3,9 @@
   import { onMount } from 'svelte'
   import { navigate } from '../../stores/router'
   import { fetchArchivedSemesters, restoreSemester, type Semester } from '../../stores/semesters'
+  import { logUiEvent } from '../../stores/logger'
 
-  const back = () => navigate('semesters')
+  const back = () => { logUiEvent('click:back', { screen: 'semesters_archive' }); navigate('semesters') }
   let archived: Semester[] = []
 
   async function load(): Promise<void> {
@@ -13,6 +14,7 @@
 
   async function onRestore(id: number): Promise<void> {
     const ok = await restoreSemester(id)
+    logUiEvent('click:restore_semester', { id, ok })
     if (ok) archived = archived.filter(s => s.id !== id)
   }
 

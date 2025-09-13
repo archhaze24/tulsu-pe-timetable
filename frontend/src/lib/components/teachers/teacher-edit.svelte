@@ -4,8 +4,9 @@
   import { directionsStore, type Direction } from '../../stores/directions'
   import { navigate, route } from '../../stores/router'
   import { derived } from 'svelte/store'
+  import { logUiEvent } from '../../stores/logger'
 
-  const back = () => navigate('teachers')
+  const back = () => { logUiEvent('click:back', { screen: 'teacher_edit' }); navigate('teachers') }
   const teacherId = derived(route, ($route) => Number($route.params?.id ?? 0))
   const teacher = derived([teachersStore, teacherId], ([$teachers, $id]) => $teachers.find(t => t.id === $id))
 
@@ -41,8 +42,10 @@
     }
     if (!data.firstName || !data.lastName || !data.rate) return
     if ($teacher) {
+      logUiEvent('click:save_teacher', { id: $teacher.id, ...data })
       updateTeacher($teacher.id, data)
     } else {
+      logUiEvent('click:create_teacher_submit', data)
       addTeacher(data)
     }
     back()
@@ -51,10 +54,12 @@
   const step = 0.25
   const clamp = (value: number) => Math.max(0, value)
   const incRate = () => {
-    rate = Number((rate + step).toFixed(2))
+   rate = Number((rate + step).toFixed(2))
+   logUiEvent('click:inc_rate', { rate })
   }
   const decRate = () => {
-    rate = clamp(Number((rate - step).toFixed(2)))
+   rate = clamp(Number((rate - step).toFixed(2)))
+   logUiEvent('click:dec_rate', { rate })
   }
 </script>
 
@@ -102,7 +107,7 @@
       </button>
       <button type="button" class="h-4 w-4 rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 ring-1 ring-black/5 flex items-center justify-center mt-0.5 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:active:bg-slate-700 dark:ring-white/10" aria-label={$t('decrease')} on:click={decRate}>
         <svg class="h-2.5 w-2.5 text-slate-700 dark:text-slate-200" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l-3.71 3.71a.75.75 0 11-1.08-1.04l4.25-4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
         </svg>
       </button>
     </div>

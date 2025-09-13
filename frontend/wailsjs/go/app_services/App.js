@@ -106,6 +106,10 @@ export function GetTeachersByArchived(arg1) {
   return window['go']['app_services']['App']['GetTeachersByArchived'](arg1);
 }
 
+export function LogClientEvent(arg1, arg2) {
+  return window['go']['app_services']['App']['LogClientEvent'](arg1, arg2);
+}
+
 export function RestoreDirection(arg1) {
   return window['go']['app_services']['App']['RestoreDirection'](arg1);
 }
