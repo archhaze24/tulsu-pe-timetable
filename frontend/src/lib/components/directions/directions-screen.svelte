@@ -3,15 +3,16 @@
   import { directionsStore, deleteDirection, type Direction } from '../../stores/directions'
   import { navigate } from '../../stores/router'
   import ConfirmModal from '../ui/confirm-modal.svelte'
+  import { logUiEvent } from '../../stores/logger'
 
-  const back = () => navigate('home')
-  const createNew = () => navigate('direction_edit', { id: 0 })
-  const open = (dir: Direction) => navigate('direction_edit', { id: dir.id })
+  const back = () => { logUiEvent('click:back', { screen: 'directions' }); navigate('home') }
+  const createNew = () => { logUiEvent('click:create_direction', {}); navigate('direction_edit', { id: 0 }) }
+  const open = (dir: Direction) => { logUiEvent('click:open_direction', { id: dir.id, name: dir.name }); navigate('direction_edit', { id: dir.id }) }
   let confirmOpen = false
   let toDeleteId: number | null = null
-  const askDelete = (id: number) => { toDeleteId = id; confirmOpen = true }
-  const onConfirm = () => { if (toDeleteId != null) deleteDirection(toDeleteId); confirmOpen = false; toDeleteId = null }
-  const onCancel = () => { confirmOpen = false; toDeleteId = null }
+  const askDelete = (id: number) => { toDeleteId = id; confirmOpen = true; logUiEvent('click:ask_delete_direction', { id }) }
+  const onConfirm = () => { if (toDeleteId != null) deleteDirection(toDeleteId); logUiEvent('confirm:delete_direction', { id: toDeleteId }); confirmOpen = false; toDeleteId = null }
+  const onCancel = () => { logUiEvent('cancel:delete_direction', { id: toDeleteId }); confirmOpen = false; toDeleteId = null }
 </script>
 
 <div class="max-w-md w-full px-6 py-10">
@@ -21,7 +22,7 @@
 
   <div class="flex items-center justify-between gap-3">
     <h2 class="text-2xl font-semibold">{$t('directions')}</h2>
-    <button class="rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 px-3 py-2 text-xs font-medium shadow-sm ring-1 ring-black/5 transition dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:active:bg-slate-700 dark:ring-white/10" on:click={() => navigate('directions_archive')}>
+    <button class="rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 px-3 py-2 text-xs font-medium shadow-sm ring-1 ring-black/5 transition dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:active:bg-slate-700 dark:ring-white/10" on:click={() => { logUiEvent('click:open_directions_archive', {}); navigate('directions_archive') }}>
       {$t('archive')}
     </button>
   </div>

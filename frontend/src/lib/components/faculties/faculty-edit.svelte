@@ -3,8 +3,9 @@
   import { facultiesStore, updateFacultyName, addFaculty, } from '../../stores/faculties'
   import { navigate, route } from '../../stores/router'
   import { derived } from 'svelte/store'
+  import { logUiEvent } from '../../stores/logger'
 
-  const back = () => navigate('faculties')
+  const back = () => { logUiEvent('click:back', { screen: 'faculty_edit' }); navigate('faculties') }
 
   const facultyId = derived(route, ($route) => Number($route.params?.id ?? 0))
   const faculty = derived([facultiesStore, facultyId], ([$faculties, $id]) =>
@@ -30,8 +31,10 @@
     const trimmed = nameDraft.trim()
     if (trimmed.length === 0) return
     if ($faculty) {
+      logUiEvent('click:save_faculty', { id: $faculty.id, name: trimmed })
       await updateFacultyName($faculty.id, trimmed)
     } else {
+      logUiEvent('click:create_faculty_submit', { name: trimmed })
       await addFaculty(trimmed)
     }
     back()

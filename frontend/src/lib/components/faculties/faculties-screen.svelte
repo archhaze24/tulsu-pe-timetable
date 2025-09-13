@@ -4,18 +4,20 @@
   import { navigate } from '../../stores/router'
   import ConfirmModal from '../ui/confirm-modal.svelte'
   import { onMount } from 'svelte'
+  import { logUiEvent } from '../../stores/logger'
 
   const openFaculty = (faculty: Faculty) => {
+    logUiEvent('click:open_faculty', { id: faculty.id, name: faculty.name })
     navigate('faculty_edit', { id: faculty.id })
   }
 
-  const back = () => navigate('home')
-  const createNew = () => navigate('faculty_edit', { id: 0 })
+  const back = () => { logUiEvent('click:back', { screen: 'faculties' }); navigate('home') }
+  const createNew = () => { logUiEvent('click:create_faculty', {}); navigate('faculty_edit', { id: 0 }) }
   let confirmOpen = false
   let toDeleteId: number | null = null
-  const askDelete = (id: number) => { toDeleteId = id; confirmOpen = true }
-  const onConfirm = () => { if (toDeleteId != null) deleteFaculty(toDeleteId); confirmOpen = false; toDeleteId = null }
-  const onCancel = () => { confirmOpen = false; toDeleteId = null }
+  const askDelete = (id: number) => { toDeleteId = id; confirmOpen = true; logUiEvent('click:ask_delete_faculty', { id }) }
+  const onConfirm = () => { if (toDeleteId != null) deleteFaculty(toDeleteId); logUiEvent('confirm:delete_faculty', { id: toDeleteId }); confirmOpen = false; toDeleteId = null }
+  const onCancel = () => { logUiEvent('cancel:delete_faculty', { id: toDeleteId }); confirmOpen = false; toDeleteId = null }
 
   onMount(() => { refreshFaculties() })
 </script>
@@ -27,7 +29,7 @@
 
   <div class="flex items-center justify-between gap-3">
     <h2 class="text-2xl font-semibold">{$t('faculties')}</h2>
-    <button class="rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 px-3 py-2 text-xs font-medium shadow-sm ring-1 ring-black/5 transition dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:active:bg-slate-700 dark:ring-white/10" on:click={() => navigate('faculties_archive')}>
+    <button class="rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 px-3 py-2 text-xs font-medium shadow-sm ring-1 ring-black/5 transition dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:active:bg-slate-700 dark:ring-white/10" on:click={() => { logUiEvent('click:open_faculties_archive', {}); navigate('faculties_archive') }}>
       {$t('archive')}
     </button>
   </div>
