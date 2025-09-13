@@ -46,6 +46,10 @@ export function DeleteTeacher(arg1) {
   return window['go']['app_services']['App']['DeleteTeacher'](arg1);
 }
 
+export function ExportScheduleXLSX(arg1) {
+  return window['go']['app_services']['App']['ExportScheduleXLSX'](arg1);
+}
+
 export function GetAllTeachersForSemester(arg1) {
   return window['go']['app_services']['App']['GetAllTeachersForSemester'](arg1);
 }

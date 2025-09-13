@@ -26,6 +26,8 @@ export function DeleteSemester(arg1:number):Promise<app_services.ApiResponse_boo
 
 export function DeleteTeacher(arg1:number):Promise<app_services.ApiResponse_bool_>;
 
+export function ExportScheduleXLSX(arg1:number):Promise<app_services.ApiResponse_string_>;
+
 export function GetAllTeachersForSemester(arg1:number):Promise<app_services.ApiResponse___tulsu_pe_timetable_backend_storage_Teacher_>;
 
 export function GetConfig():Promise<app_services.ApiResponse_tulsu_pe_timetable_backend_config_Config_>;

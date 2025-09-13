@@ -10,6 +10,7 @@
   import { get } from 'svelte/store'
   import { refreshDirections } from '../../stores/directions'
   import { refreshFaculties } from '../../stores/faculties'
+  import * as App from '../../../../wailsjs/go/app_services/App.js'
 
   const back = () => navigate('semesters')
 
@@ -82,8 +83,21 @@
       .join(', ')
   }
 
-  function exportXLSX() {
-    alert('Экспорт XLSX будет реализован на бэкенде')
+  async function exportXLSX() {
+    if (!semesterId) return
+    try {
+      const resp = await App.ExportScheduleXLSX(semesterId)
+      if (resp.error) {
+        alert(resp.error)
+        return
+      }
+      const path = resp.data
+      if (path) {
+        alert(`Файл сохранён: ${path}`)
+      }
+    } catch (e) {
+      alert(String(e))
+    }
   }
 
   // Save schedule action: force reload from backend to ensure persisted state is shown
