@@ -32,38 +32,44 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 		return ApiResponse[string]{Data: "", Error: err.Error()}
 	}
 
-	// Собираем список направлений, встречающихся в занятиях
-	dirOrder := make([]int64, 0)
-	dirIDToName := make(map[int64]string)
-	seen := make(map[int64]bool)
-	for _, l := range lessons {
-		if !seen[l.DirectionID] {
-			seen[l.DirectionID] = true
-			dirOrder = append(dirOrder, l.DirectionID)
-			dirIDToName[l.DirectionID] = l.DirectionName
-		}
+	// Формируем список колонок по преподавателям (как в UI)
+	type teacherHeader struct {
+		ID        int64
+		ShortName string
+		Direction string
+		Rate      float64
 	}
-	// Стабильная сортировка по имени направления
-	sort.Slice(dirOrder, func(i, j int) bool {
-		return strings.ToLower(dirIDToName[dirOrder[i]]) < strings.ToLower(dirIDToName[dirOrder[j]])
-	})
-
-	// Готовим агрегаты по преподавателям (кол-во и сумма ставок по направлениям)
-	teacherCountByDir := make(map[int64]int)
-	rateSumByDir := make(map[int64]float64)
+	formatShort := func(t storage.Teacher) string {
+		first := strings.TrimSpace(t.FirstName)
+		middle := strings.TrimSpace(t.MiddleName)
+		last := strings.TrimSpace(t.LastName)
+		var parts []string
+		if last != "" {
+			parts = append(parts, last)
+		}
+		if first != "" {
+			r := []rune(first)
+			if len(r) > 0 {
+				parts = append(parts, string(r[0])+".")
+			}
+		}
+		if middle != "" {
+			r := []rune(middle)
+			if len(r) > 0 {
+				parts = append(parts, string(r[0])+".")
+			}
+		}
+		return strings.Join(parts, " ")
+	}
+	teacherCols := make([]teacherHeader, 0, len(teachers))
 	for _, t := range teachers {
-		teacherCountByDir[t.DirectionID]++
-		rateSumByDir[t.DirectionID] += t.Rate
-		// Если в семестре нет занятий этого направления, всё равно покажем колонку
-		if _, ok := dirIDToName[t.DirectionID]; !ok {
-			dirIDToName[t.DirectionID] = t.DirectionName
-			dirOrder = append(dirOrder, t.DirectionID)
-		}
+		teacherCols = append(teacherCols, teacherHeader{
+			ID:        t.ID,
+			ShortName: formatShort(t),
+			Direction: strings.TrimSpace(t.DirectionName),
+			Rate:      t.Rate,
+		})
 	}
-	// Пересортируем после возможного пополнения
-	sort.SliceStable(dirOrder, func(i, j int) bool {
-		return strings.ToLower(dirIDToName[dirOrder[i]]) < strings.ToLower(dirIDToName[dirOrder[j]])
-	})
 
 	// Карта day->уникальные слоты, отсортированные
 	dayToSlots := map[int][]string{}
@@ -140,7 +146,7 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 		Footer: &footerM,
 	})
 
-	// Колонки: День | Время | Факультеты | <направления...>
+	// Колонки: День | Время | Факультеты | <преподаватели...>
 	colDay := 1
 	colTime := 2
 	colFac := 3
@@ -188,10 +194,6 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 			{Type: "bottom", Color: "#000000", Style: 1},
 		},
 	})
-	titleStyle, _ := f.NewStyle(&excelize.Style{
-		Font:      &excelize.Font{Family: "Times New Roman", Bold: true, Size: 14},
-		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
-	})
 	labelMergedStyle, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Family: "Times New Roman", Size: 11},
 		Alignment: &excelize.Alignment{Horizontal: "left", Vertical: "center", WrapText: true},
@@ -202,51 +204,53 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 			{Type: "bottom", Color: "#000000", Style: 1},
 		},
 	})
+	titleStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Family: "Times New Roman", Bold: true, Size: 14},
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center", WrapText: true},
+		Border: []excelize.Border{
+			{Type: "left", Color: "#000000", Style: 1},
+			{Type: "right", Color: "#000000", Style: 1},
+			{Type: "top", Color: "#000000", Style: 1},
+			{Type: "bottom", Color: "#000000", Style: 1},
+		},
+	})
 
 	row := 1
-	// Титульная строка
-	lastHeaderCol := colFirstDir + len(dirOrder) - 1
+	// Шапка: объединяем A:C и переносим туда название; далее ФИО преподавателя (направление)
+	lastHeaderCol := colFirstDir + len(teacherCols) - 1
 	if lastHeaderCol < colFac {
 		lastHeaderCol = colFac
 	}
-	titleStart := mustCell(colDay, row)
-	titleEnd, _ := excelize.CoordinatesToCellName(lastHeaderCol, row)
-	_ = f.MergeCell(sheetName, titleStart, titleEnd)
-	_ = f.SetCellValue(sheetName, titleStart, fmt.Sprintf("Расписание учебных занятий по физической культуре на %s", strings.TrimSpace(semester.Name)))
-	_ = f.SetRowHeight(sheetName, row, 24)
-	_ = f.SetCellStyle(sheetName, titleStart, titleEnd, titleStyle)
-
-	// Шапка таблицы: только направления (левые колонки пустые)
-	row++
-	for i, dirID := range dirOrder {
-		_ = f.SetCellValue(sheetName, mustCell(colFirstDir+i, row), strings.TrimSpace(dirIDToName[dirID]))
-	}
-	headerStart := mustCell(colDay, row)
-	headerEnd, _ := excelize.CoordinatesToCellName(lastHeaderCol, row)
-	_ = f.SetCellStyle(sheetName, headerStart, headerEnd, headerStyle)
-	_ = f.SetRowHeight(sheetName, row, 24)
-
-	// Строка "Количество преподавателей"
-	row++
-	// Объединяем A:C для текста
 	_ = f.MergeCell(sheetName, mustCell(colDay, row), mustCell(colFac, row))
-	_ = f.SetCellValue(sheetName, mustCell(colDay, row), "Количество преподавателей")
-	for i, dirID := range dirOrder {
-		_ = f.SetCellValue(sheetName, mustCell(colFirstDir+i, row), teacherCountByDir[dirID])
+	_ = f.SetCellValue(sheetName, mustCell(colDay, row), fmt.Sprintf("Расписание учебных занятий по физической культуре на %s", strings.TrimSpace(semester.Name)))
+	_ = f.SetRowHeight(sheetName, row, 48)
+	for i, th := range teacherCols {
+		header := strings.TrimSpace(th.ShortName)
+		if th.Direction != "" {
+			header = header + " (" + th.Direction + ")"
+		}
+		_ = f.SetCellValue(sheetName, mustCell(colFirstDir+i, row), header)
 	}
-	_ = f.SetCellStyle(sheetName, mustCell(colDay, row), mustCell(colFac, row), labelMergedStyle)
-	_ = f.SetCellStyle(sheetName, mustCell(colFirstDir, row), headerEnd, centerGridStyle)
+	// Apply styles: title on A:C, header on teacher columns
+	headerEnd, _ := excelize.CoordinatesToCellName(lastHeaderCol, row)
+	if len(teacherCols) > 0 {
+		_ = f.SetCellStyle(sheetName, mustCell(colFirstDir, row), headerEnd, headerStyle)
+	}
+	_ = f.SetCellStyle(sheetName, mustCell(colDay, row), mustCell(colFac, row), titleStyle)
+	_ = f.SetRowHeight(sheetName, row, 48)
+
+	// (Строка "Количество преподавателей" удалена по требованию)
 
 	// Строка "Величина ставки"
 	row++
 	// Объединяем A:C для текста
 	_ = f.MergeCell(sheetName, mustCell(colDay, row), mustCell(colFac, row))
 	_ = f.SetCellValue(sheetName, mustCell(colDay, row), "Величина ставки")
-	for i, dirID := range dirOrder {
-		_ = f.SetCellValue(sheetName, mustCell(colFirstDir+i, row), rateSumByDir[dirID])
+	for i, th := range teacherCols {
+		_ = f.SetCellValue(sheetName, mustCell(colFirstDir+i, row), th.Rate)
 	}
 	_ = f.SetCellStyle(sheetName, mustCell(colDay, row), mustCell(colFac, row), labelMergedStyle)
-	if len(dirOrder) > 0 {
+	if len(teacherCols) > 0 {
 		rateStart := mustCell(colFirstDir, row)
 		rateEnd, _ := excelize.CoordinatesToCellName(lastHeaderCol, row)
 		_ = f.SetCellStyle(sheetName, rateStart, rateEnd, rateNumberStyle)
@@ -258,8 +262,8 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 	_ = f.SetCellValue(sheetName, mustCell(colTime, row), "Время")
 	_ = f.SetCellValue(sheetName, mustCell(colFac, row), "Факультет")
 	_ = f.SetCellStyle(sheetName, mustCell(colDay, row), mustCell(colFac, row), headerStyle)
-	// выровняем верх границы направлений в этой строке
-	if len(dirOrder) > 0 {
+	// выровняем верх границы колонок преподавателей в этой строке
+	if len(teacherCols) > 0 {
 		gridHeaderEnd, _ := excelize.CoordinatesToCellName(lastHeaderCol, row)
 		_ = f.SetCellStyle(sheetName, mustCell(colFirstDir, row), gridHeaderEnd, headerStyle)
 	}
@@ -287,19 +291,27 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 	}
 
 	// Индексируем занятия для быстрого доступа
-	// map[day][slot][directionID] -> []Lesson
-	byKey := map[int]map[string]map[int64][]storage.Lesson{}
+	// byDaySlot: map[day][slot] -> []Lesson
+	byDaySlot := map[int]map[string][]storage.Lesson{}
+	// byTeacher: map[day][slot][teacherID] -> bool (наличие пары у препода в слоте)
+	byTeacher := map[int]map[string]map[int64]bool{}
 	for _, l := range lessons {
 		start := normalizeTime(l.StartTime)
 		end := normalizeTime(l.EndTime)
 		slot := start + "-" + end
-		if _, ok := byKey[l.DayOfWeek]; !ok {
-			byKey[l.DayOfWeek] = map[string]map[int64][]storage.Lesson{}
+		if _, ok := byDaySlot[l.DayOfWeek]; !ok {
+			byDaySlot[l.DayOfWeek] = map[string][]storage.Lesson{}
 		}
-		if _, ok := byKey[l.DayOfWeek][slot]; !ok {
-			byKey[l.DayOfWeek][slot] = map[int64][]storage.Lesson{}
+		byDaySlot[l.DayOfWeek][slot] = append(byDaySlot[l.DayOfWeek][slot], l)
+		if _, ok := byTeacher[l.DayOfWeek]; !ok {
+			byTeacher[l.DayOfWeek] = map[string]map[int64]bool{}
 		}
-		byKey[l.DayOfWeek][slot][l.DirectionID] = append(byKey[l.DayOfWeek][slot][l.DirectionID], l)
+		if _, ok := byTeacher[l.DayOfWeek][slot]; !ok {
+			byTeacher[l.DayOfWeek][slot] = map[int64]bool{}
+		}
+		for _, tid := range l.TeacherIDs {
+			byTeacher[l.DayOfWeek][slot][tid] = true
+		}
 	}
 
 	for d := 1; d <= 7; d++ {
@@ -311,14 +323,12 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 		for _, slot := range slots {
 			row++
 			_ = f.SetCellValue(sheetName, mustCell(colTime, row), slot)
-			// Колонка факультетов — агрегат по всем направлениям в этом слоте
+			// Колонка факультетов — агрегат по всем занятиям в этом слоте
 			facSet := map[string]bool{}
-			for _, dirID := range dirOrder {
-				for _, l := range byKey[d][slot][dirID] {
-					for _, name := range l.FacultyNames {
-						if name != "" {
-							facSet[name] = true
-						}
+			for _, l := range byDaySlot[d][slot] {
+				for _, name := range l.FacultyNames {
+					if name != "" {
+						facSet[name] = true
 					}
 				}
 			}
@@ -329,32 +339,30 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 			sort.Strings(facList)
 			_ = f.SetCellValue(sheetName, mustCell(colFac, row), strings.Join(facList, ", "))
 
-			// Заполняем ячейки по направлениям
-			for i, dirID := range dirOrder {
-				items := byKey[d][slot][dirID]
-				if len(items) == 0 {
-					continue
+			// Заполняем ячейки по преподавателям: '+' если у преподавателя есть пара в этом слоте
+			for i, th := range teacherCols {
+				val := ""
+				if byTeacher[d][slot][th.ID] {
+					val = "+"
 				}
-				var cellParts []string
-				for _, l := range items {
-					fac := strings.Join(l.FacultyNames, ", ")
-					teachers := strings.Join(l.TeacherNames, ", ")
-					val := strings.TrimSpace(strings.Join([]string{fac, teachers}, "\n"))
-					if val != "" {
-						cellParts = append(cellParts, val)
-					}
-				}
-				_ = f.SetCellValue(sheetName, mustCell(colFirstDir+i, row), strings.Join(cellParts, "\n—\n"))
+				_ = f.SetCellValue(sheetName, mustCell(colFirstDir+i, row), val)
 			}
 
 			// применим стиль сетки к строке
 			rowStart := mustCell(colDay, row)
-			rowEnd, _ := excelize.CoordinatesToCellName(colFirstDir+len(dirOrder)-1, row)
-			if (colFirstDir + len(dirOrder) - 1) < colFac {
+			rowEnd, _ := excelize.CoordinatesToCellName(colFirstDir+len(teacherCols)-1, row)
+			if (colFirstDir + len(teacherCols) - 1) < colFac {
 				rowEnd = mustCell(colFac, row)
 			}
 			_ = f.SetCellStyle(sheetName, rowStart, rowEnd, gridStyle)
 			_ = f.SetRowHeight(sheetName, row, 18)
+
+			// выровняем плюсики по центру в колонках преподавателей
+			if len(teacherCols) > 0 {
+				teacherRowStart := mustCell(colFirstDir, row)
+				teacherRowEnd, _ := excelize.CoordinatesToCellName(colFirstDir+len(teacherCols)-1, row)
+				_ = f.SetCellStyle(sheetName, teacherRowStart, teacherRowEnd, centerGridStyle)
+			}
 		}
 		// объединяем ячейку дня
 		dayTop := mustCell(colDay, dayStartRow)
@@ -368,14 +376,40 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 	_ = f.SetColWidth(sheetName, "A", "A", 4)
 	_ = f.SetColWidth(sheetName, "B", "B", 12)
 	_ = f.SetColWidth(sheetName, "C", "C", 28)
-	if len(dirOrder) > 0 {
+	if len(teacherCols) > 0 {
 		firstColName, _ := excelize.ColumnNumberToName(colFirstDir)
-		lastColName, _ := excelize.ColumnNumberToName(colFirstDir + len(dirOrder) - 1)
+		lastColName, _ := excelize.ColumnNumberToName(colFirstDir + len(teacherCols) - 1)
 		_ = f.SetColWidth(sheetName, firstColName, lastColName, 18)
 	}
 
 	// Область печати: вся таблица с заголовком и строкой места проведения
 	lastColName, _ := excelize.ColumnNumberToName(lastHeaderCol)
+	// Уточним последнюю непустую строку по фактическим значениям ячеек и, при необходимости, удалим хвост
+	{
+		lastNonEmptyRow := 0
+		for r := row; r >= 1; r-- {
+			has := false
+			for c := 1; c <= lastHeaderCol; c++ {
+				cell, _ := excelize.CoordinatesToCellName(c, r)
+				v, _ := f.GetCellValue(sheetName, cell)
+				if strings.TrimSpace(v) != "" {
+					has = true
+					break
+				}
+			}
+			if has {
+				lastNonEmptyRow = r
+				break
+			}
+		}
+		if lastNonEmptyRow > 0 && lastNonEmptyRow < row {
+			// Удаляем все строки после последней непустой
+			for toRemove := row - lastNonEmptyRow; toRemove > 0; toRemove-- {
+				_ = f.RemoveRow(sheetName, lastNonEmptyRow+1)
+			}
+			row = lastNonEmptyRow
+		}
+	}
 	_ = f.SetDefinedName(&excelize.DefinedName{
 		Name:     "_xlnm.Print_Area",
 		RefersTo: fmt.Sprintf("='%s'!$A$1:$%s$%d", sheetName, lastColName, row),
