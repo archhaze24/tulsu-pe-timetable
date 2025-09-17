@@ -33,6 +33,24 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 		return nil, fmt.Errorf(locales.GetMessage("errors.database.connection_failed")+": %w", err)
 	}
 
+	// Настраиваем пул соединений: одно соединение достаточно и безопасно для SQLite
+	// Это предотвращает гонки и частые SQLITE_BUSY при параллельных запросах
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
+	// Включаем критичные PRAGMA для стабильности под нагрузкой
+	// WAL позволяет одновременно читать и писать, busy_timeout даёт драйверу подождать снятия блокировки,
+	// foreign_keys гарантирует целостность связей
+	if _, err := db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.database.configure_failed")+": %w", err)
+	}
+	if _, err := db.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.database.configure_failed")+": %w", err)
+	}
+	if _, err := db.Exec("PRAGMA busy_timeout = 5000;"); err != nil {
+		return nil, fmt.Errorf(locales.GetMessage("errors.database.configure_failed")+": %w", err)
+	}
+
 	// Проверяем соединение
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.database.ping_failed")+": %w", err)

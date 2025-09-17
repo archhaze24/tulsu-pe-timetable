@@ -71,16 +71,23 @@ export async function updateDirection(id: number, changes: { name: string }): Pr
   }
 }
 
-export async function createDirection(name: string): Promise<void> {
+export async function createDirection(name: string): Promise<Direction | null> {
   try {
     const resp = await App.CreateDirection({ name })
     if (resp.error) {
       console.error('CreateDirection error:', resp.error)
-      return
+      return null
+    }
+    const data = resp.data as any
+    const created: Direction = {
+      id: Number(data?.id),
+      name: String(data?.name ?? '')
     }
     await refreshDirections()
+    return created
   } catch (e) {
     console.error('CreateDirection failed:', e)
+    return null
   }
 }
 

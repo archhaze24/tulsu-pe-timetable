@@ -48,6 +48,20 @@
     })
   )
 
+  // Dynamic teacher column sizing
+  let containerWidth = 0
+  let dayHeaderEl: HTMLTableCellElement
+  let timeHeaderEl: HTMLTableCellElement
+  let facultyHeaderEl: HTMLTableCellElement
+  let deleteHeaderEl: HTMLTableCellElement
+  const MIN_TEACHER_COL_PX = 96
+  $: fixedColsTotalPx = (dayHeaderEl?.offsetWidth || 0) + (timeHeaderEl?.offsetWidth || 0) + (facultyHeaderEl?.offsetWidth || 0) + (deleteHeaderEl?.offsetWidth || 0)
+  $: teacherColsCount = boundTeachers.length
+  $: teacherColWidthPx = Math.max(
+    MIN_TEACHER_COL_PX,
+    Math.floor(((containerWidth || 0) - (fixedColsTotalPx || 0)) / Math.max(1, teacherColsCount || 1))
+  )
+
   function cellLessons(day: number, slot: string): Lesson[] {
     const [start, end] = slot.split('-')
     return lessons.filter(l => l.dayOfWeek === day && l.startTime === start && l.endTime === end)
@@ -268,13 +282,16 @@
   function openFacultyPopover(e: MouseEvent, day: number, slot: string) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const width = 360
+    const estimatedHeight = 320
     const baseLeft = rect.left + (rect.width / 2) - (width / 2)
     const minLeft = 8
     const maxLeft = window.innerWidth - width - 8
     const left = Math.max(minLeft, Math.min(maxLeft, baseLeft))
-    const top = rect.bottom + 8
+    const spaceBelow = window.innerHeight - rect.bottom
+    const openBelow = spaceBelow >= estimatedHeight + 8
+    const top = openBelow ? rect.bottom + 8 : Math.max(8, rect.top - estimatedHeight - 8)
     facultyPopover = { day, slot, pos: { x: left, y: top } }
-    logUiEvent('click:open_faculty_popover', { semesterId, day, slot })
+    logUiEvent('click:open_faculty_popover', { semesterId, day, slot, openBelow })
   }
   function closeFacultyPopover() { facultyPopover = null; logUiEvent('click:close_faculty_popover', { semesterId }) }
   // Re-render is driven by lessonsVersion
@@ -383,25 +400,25 @@
     </div>
   {/if}
 
-  <div class="flex-1 overflow-auto custom-scroll">
-    <table class="min-w-full text-sm border-separate w-auto" style="border-spacing: 0; table-layout: auto;">
+  <div class="flex-1 overflow-auto custom-scroll" bind:clientWidth={containerWidth} style={`--teacher-col-width:${teacherColWidthPx}px`}>
+    <table class="min-w-full text-sm border-separate w-auto" style="border-spacing: 0; table-layout: fixed;">
       <colgroup>
         <col style="width: 3rem" />
         <col style="width: 6rem" />
         <col style="width: 1%" />
         {#each boundTeachers as _}
-          <col />
+          <col style="width: var(--teacher-col-width)" />
         {/each}
         <col style="width: 3.5rem" />
       </colgroup>
       <thead>
         <tr>
-          <th class="sticky left-0 z-20 bg-white dark:bg-slate-900 text-center p-2 border-b border-slate-200 dark:border-slate-700 w-12">{$t('day')}</th>
-          <th class="sticky left-0 z-20 bg-white dark:bg-slate-900 text-center p-2 border-b border-slate-200 dark:border-slate-700 w-24">{$t('time')}</th>
-          <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-left whitespace-nowrap">{$t('faculty')}</th>
+          <th class="sticky left-0 z-20 bg-white dark:bg-slate-900 text-center p-2 border-b border-slate-200 dark:border-slate-700 w-12" bind:this={dayHeaderEl}>{$t('day')}</th>
+          <th class="sticky left-0 z-20 bg-white dark:bg-slate-900 text-center p-2 border-b border-slate-200 dark:border-slate-700 w-24" bind:this={timeHeaderEl}>{$t('time')}</th>
+          <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-left whitespace-nowrap" bind:this={facultyHeaderEl}>{$t('faculty')}</th>
           {#each $semesterTeachersStore.filter(t => t.isBound) as teacher}
-            <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-left min-w-[6rem]">
-              <div class="text-xs text-slate-500 dark:text-slate-400 truncate whitespace-nowrap min-w-0">{($directionsStore.find(d => d.id === teacher.directionId)?.name) || ''}</div>
+            <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-left align-top overflow-hidden" style="width: var(--teacher-col-width); min-width: var(--teacher-col-width); max-width: var(--teacher-col-width);">
+              <div class="text-xs text-slate-500 dark:text-slate-400 break-words whitespace-normal min-w-0">{($directionsStore.find(d => d.id === teacher.directionId)?.name) || ''}</div>
               <div class="flex items-start gap-1">
                 <div class="flex-1 min-w-0">
                   <div class="font-medium leading-tight text-sm break-words whitespace-normal" title={formatTeacherName(teacher)}>{formatTeacherName(teacher)}</div>
@@ -428,7 +445,7 @@
               </div>
             </th>
           {/each}
-          <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-right w-14"></th>
+          <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-right w-14" bind:this={deleteHeaderEl}></th>
         </tr>
       </thead>
       <tbody>
@@ -452,7 +469,7 @@
                 {/key}
               </td>
               {#each $semesterTeachersStore.filter(t => t.isBound) as teacher}
-                <td class="p-2 border-b border-slate-200 dark:border-slate-800 align-middle min-w-[6rem]">
+                <td class="p-2 border-b border-slate-200 dark:border-slate-800 align-middle overflow-hidden" style="width: var(--teacher-col-width); min-width: var(--teacher-col-width); max-width: var(--teacher-col-width);">
                   {#key lessonsVersion + '-' + cellLessons(d.key, slot).map(l => l.id).join('-')}
                     <button
                       class={cellButtonClasses(!!teacherLesson(d.key, slot, teacher.id))}
@@ -513,7 +530,7 @@
     </div>
   {/if}
   {#if facultyPopover}
-    <div class="fixed z-30 w-[360px] rounded-lg bg-white dark:bg-slate-900 ring-1 ring-black/10 dark:ring-white/10 p-3 shadow-xl" style={`left:${facultyPopover.pos.x}px; top:${facultyPopover.pos.y}px`} role="dialog" aria-modal="true">
+    <div class="fixed z-30 w-[360px] max-h-[80vh] overflow-auto rounded-lg bg-white dark:bg-slate-900 ring-1 ring-black/10 dark:ring-white/10 p-3 shadow-xl" style={`left:${facultyPopover.pos.x}px; top:${facultyPopover.pos.y}px`} role="dialog" aria-modal="true">
       <div class="text-xs text-slate-600 dark:text-slate-400 mb-2">{$t('add_faculty')}</div>
       {#key lessonsVersion + '-' + rowKey(facultyPopover.day, facultyPopover.slot)}
         <div class="max-h-64 overflow-auto grid gap-1 mb-3">
