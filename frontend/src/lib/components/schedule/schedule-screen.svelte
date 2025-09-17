@@ -11,6 +11,7 @@
   import { refreshDirections } from '../../stores/directions'
   import { refreshFaculties } from '../../stores/faculties'
   import { logUiEvent } from '../../stores/logger'
+  import * as App from '../../../../wailsjs/go/app_services/App.js'
 
   const back = () => { logUiEvent('click:back', { screen: 'schedule', semesterId }); navigate('semesters') }
 
@@ -85,9 +86,26 @@
       .join(', ')
   }
 
-  function exportXLSX() {
+  async function exportXLSX() {
     logUiEvent('click:export_xlsx', { screen: 'schedule', semesterId })
-    alert('Экспорт XLSX будет реализован на бэкенде')
+    if (!semesterId) return
+    try {
+      const resp = await App.ExportScheduleXLSX(semesterId)
+      if (resp?.error) {
+        alert(String(resp.error))
+        logUiEvent('export_xlsx_error', { semesterId, error: resp.error })
+        return
+      }
+      if (resp?.data) {
+        logUiEvent('export_xlsx_success', { semesterId, path: resp.data })
+      } else {
+        // User cancelled in save dialog
+        logUiEvent('export_xlsx_cancelled', { semesterId })
+      }
+    } catch (e) {
+      alert(String(e))
+      logUiEvent('export_xlsx_exception', { semesterId, error: String(e) })
+    }
   }
 
   // Removed manual save: changes persist automatically

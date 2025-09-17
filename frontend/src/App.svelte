@@ -18,6 +18,8 @@
   import type {config} from '../wailsjs/go/models'
   import { theme, setTheme, toggleTheme } from './lib/stores/theme'
   import { UpdateConfig } from '../wailsjs/go/app_services/App.js'
+  import DebugMenu from './lib/components/ui/debug-menu.svelte'
+  import { debugMenuOpen, toggleDebugMenu, closeDebugMenu } from './lib/stores/debug'
 
   // Инициализация конфигурации при старте приложения
   let configData: config.Config | null = null
@@ -67,7 +69,16 @@
       console.error('Ошибка сохранения темы:', res.error)
     }
   }
+
+  function onKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'F11') {
+      e.preventDefault()
+      toggleDebugMenu()
+    }
+  }
 </script>
+
+<svelte:window on:keydown={onKeyDown} />
 
 <main class="min-h-screen bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-50 font-sans { $route.name === 'schedule' ? '' : 'flex items-center justify-center' }">
   {#if $route.name === 'home'}
@@ -82,7 +93,7 @@
     </button>
   {/if}
   {#if $route.name === 'home'}
-    <HomeScreen {configData} />
+    <HomeScreen />
   {:else if $route.name === 'faculties'}
     <FacultiesScreen />
   {:else if $route.name === 'faculty_edit'}
@@ -110,4 +121,6 @@
   {:else if $route.name === 'schedule'}
     <ScheduleScreen />
   {/if}
+
+  <DebugMenu open={$debugMenuOpen} {configData} on:close={closeDebugMenu} />
 </main>

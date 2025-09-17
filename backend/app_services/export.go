@@ -116,6 +116,8 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 
 	// Создаем книгу
 	f := excelize.NewFile()
+	// Явно закрываем книгу после сохранения, чтобы корректно финализировать архив XLSX
+	defer func() { _ = f.Close() }()
 	const defaultSheet = "Sheet1"
 	const sheetName = "Расписание"
 	_ = f.SetSheetName(defaultSheet, sheetName)
@@ -383,7 +385,7 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 	}
 
 	// Область печати: вся таблица с заголовком и строкой места проведения
-	lastColName, _ := excelize.ColumnNumberToName(lastHeaderCol)
+	_, _ = excelize.ColumnNumberToName(lastHeaderCol)
 	// Уточним последнюю непустую строку по фактическим значениям ячеек и, при необходимости, удалим хвост
 	{
 		lastNonEmptyRow := 0
@@ -407,14 +409,10 @@ func (a *App) ExportScheduleXLSX(semesterID int64) ApiResponse[string] {
 			for toRemove := row - lastNonEmptyRow; toRemove > 0; toRemove-- {
 				_ = f.RemoveRow(sheetName, lastNonEmptyRow+1)
 			}
-			row = lastNonEmptyRow
 		}
 	}
-	_ = f.SetDefinedName(&excelize.DefinedName{
-		Name:     "_xlnm.Print_Area",
-		RefersTo: fmt.Sprintf("='%s'!$A$1:$%s$%d", sheetName, lastColName, row),
-		Scope:    sheetName,
-	})
+	// Не задаем именованную область печати, чтобы избежать предупреждений Excel о «восстановлении содержимого»
+	// при открытии. Параметры подгонки страницы заданы через SetPageLayout выше и этого достаточно.
 
 	// Диалог сохранения файла
 	defaultName := fmt.Sprintf("schedule_%s_%s.xlsx", sanitizeFileName(semester.Name), time.Now().Format("20060102_150405"))
