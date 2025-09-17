@@ -8,6 +8,7 @@ export interface Teacher {
   middleName?: string
   directionId: number
   rate: number
+  directionName?: string
 }
 
 export const teachersStore = writable<Teacher[]>([])
@@ -19,7 +20,8 @@ function mapTeacherFromBackend(t: any): Teacher {
     lastName: String(t.last_name ?? ''),
     middleName: t.middle_name ? String(t.middle_name) : undefined,
     directionId: Number(t.direction_id ?? 0),
-    rate: Number(t.rate ?? 0)
+    rate: Number(t.rate ?? 0),
+    directionName: t.direction_name ? String(t.direction_name) : undefined
   }
 }
 

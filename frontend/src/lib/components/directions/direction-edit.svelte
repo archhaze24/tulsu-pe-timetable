@@ -26,15 +26,23 @@
     }
   }
 
-  const save = () => {
+  const save = async () => {
     const n = nameDraft.trim()
     if (n.length === 0) return
     if ($direction) {
       logUiEvent('click:save_direction', { id: $direction.id, name: n })
-      updateDirection($direction.id, { name: n })
+      await updateDirection($direction.id, { name: n })
     } else {
       logUiEvent('click:create_direction_submit', { name: n })
-      createDirection(n)
+      const created = await createDirection(n)
+      if (created) {
+        // Назначаем выбранных преподавателей новому направлению
+        const ids = Array.from(selectedCreateIds)
+        for (const tid of ids) {
+          logUiEvent('click:assign_teacher_direction_on_create', { teacherId: tid, directionId: created.id })
+          await updateTeacher(tid, { directionId: created.id })
+        }
+      }
     }
     back()
   }
@@ -48,14 +56,33 @@
       : all
   }
 
+  const canToggle = (teacher: Teacher) => {
+    if (!$direction) return false
+    return teacher.directionId === 0 || teacher.directionId === $direction.id
+  }
+
   const toggle = (teacher: Teacher) => {
     if (!$direction) return
     if (teacher.directionId === $direction.id) {
       logUiEvent('click:unassign_teacher_direction', { teacherId: teacher.id, directionId: $direction.id })
       updateTeacher(teacher.id, { directionId: 0 })
     } else {
+      if (teacher.directionId !== 0 && teacher.directionId !== $direction.id) return
       logUiEvent('click:assign_teacher_direction', { teacherId: teacher.id, directionId: $direction.id })
       updateTeacher(teacher.id, { directionId: $direction.id })
+    }
+  }
+
+  // Режим создания: выбираем преподавателей, которых назначим после создания направления
+  let selectedCreateIds: Set<number> = new Set()
+  const toggleSelectCreate = (teacher: Teacher) => {
+    if (teacher.directionId !== 0) return
+    if (selectedCreateIds.has(teacher.id)) {
+      selectedCreateIds.delete(teacher.id)
+      selectedCreateIds = new Set(selectedCreateIds)
+    } else {
+      selectedCreateIds.add(teacher.id)
+      selectedCreateIds = new Set(selectedCreateIds)
     }
   }
 </script>
@@ -81,12 +108,33 @@
     <input class="w-full rounded-lg bg-white dark:bg-slate-900/60 focus:bg-white dark:focus:bg-slate-900 px-4 py-2 ring-1 ring-slate-200 dark:ring-white/10 outline-none" bind:value={search} placeholder={$t('search_placeholder')} />
     <div class="mt-3 max-h-60 overflow-auto rounded-md ring-1 ring-slate-200 dark:ring-white/10 divide-y divide-slate-100 dark:divide-white/5">
       {#each filteredTeachers as teacher}
-        <button class="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-800/60 text-left" on:click={() => toggle(teacher)}>
-          <span>{formatTeacherName(teacher)}</span>
-          {#if $direction && teacher.directionId === $direction.id}
-            <span class="text-emerald-600 dark:text-emerald-400 text-xs">{$t('assigned')}</span>
-          {/if}
-        </button>
+        {#if $direction}
+          <button
+            class="w-full flex items-center justify-between px-3 py-2 text-left disabled:opacity-60 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800/60 disabled:hover:bg-transparent"
+            on:click={() => canToggle(teacher) && toggle(teacher)}
+            disabled={!canToggle(teacher)}
+          >
+            <span>{formatTeacherName(teacher)}</span>
+            {#if teacher.directionId === $direction.id}
+              <span class="text-emerald-600 dark:text-emerald-400 text-xs">{$t('assigned')}</span>
+            {:else if teacher.directionId !== 0}
+              <span class="text-amber-600 dark:text-amber-400 text-xs">{$t('assigned_to_direction')}: {teacher.directionName}</span>
+            {/if}
+          </button>
+        {:else}
+          <button
+            class="w-full flex items-center justify-between px-3 py-2 text-left disabled:opacity-60 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800/60 disabled:hover:bg-transparent"
+            on:click={() => toggleSelectCreate(teacher)}
+            disabled={teacher.directionId !== 0}
+          >
+            <span>{formatTeacherName(teacher)}</span>
+            {#if teacher.directionId !== 0}
+              <span class="text-amber-600 dark:text-amber-400 text-xs">{$t('assigned_to_direction')}: {teacher.directionName}</span>
+            {:else if selectedCreateIds.has(teacher.id)}
+              <span class="text-emerald-600 dark:text-emerald-400 text-xs">{$t('will_assign')}</span>
+            {/if}
+          </button>
+        {/if}
       {/each}
     </div>
   </div>

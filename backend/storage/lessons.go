@@ -183,15 +183,15 @@ func (r *LessonsRepository) GetAll() ([]Lesson, error) {
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_all_failed")+": %w", err)
 	}
-	defer rows.Close()
 
+	// Сначала считываем базовые поля всех занятий, чтобы освободить курсор и соединение
 	var lessons []Lesson
 	for rows.Next() {
 		var lesson Lesson
 		var semesterName, directionName sql.NullString
 		var teacherCount sql.NullInt64
 
-		err := rows.Scan(
+		if err := rows.Scan(
 			&lesson.ID,
 			&lesson.SemesterID,
 			&lesson.DayOfWeek,
@@ -201,8 +201,7 @@ func (r *LessonsRepository) GetAll() ([]Lesson, error) {
 			&teacherCount,
 			&semesterName,
 			&directionName,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.scan_failed")+": %w", err)
 		}
 
@@ -210,7 +209,6 @@ func (r *LessonsRepository) GetAll() ([]Lesson, error) {
 			count := int(teacherCount.Int64)
 			lesson.TeacherCount = &count
 		}
-
 		if semesterName.Valid {
 			lesson.SemesterName = semesterName.String
 		}
@@ -218,26 +216,30 @@ func (r *LessonsRepository) GetAll() ([]Lesson, error) {
 			lesson.DirectionName = directionName.String
 		}
 
-		// Получаем связанные факультеты и преподавателей для каждого занятия
-		facultyIDs, facultyNames, err := r.getLessonFaculties(lesson.ID)
+		lessons = append(lessons, lesson)
+	}
+	if err = rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.iterate_failed")+": %w", err)
+	}
+	// Закрываем курсор до выполнения дополнительных запросов, чтобы освободить соединение
+	_ = rows.Close()
+
+	// Теперь последовательно подгружаем связи для каждого занятия
+	for i := range lessons {
+		facultyIDs, facultyNames, err := r.getLessonFaculties(lessons[i].ID)
 		if err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_faculties_failed")+": %w", err)
 		}
-		lesson.FacultyIDs = facultyIDs
-		lesson.FacultyNames = facultyNames
+		lessons[i].FacultyIDs = facultyIDs
+		lessons[i].FacultyNames = facultyNames
 
-		teacherIDs, teacherNames, err := r.getLessonTeachers(lesson.ID)
+		teacherIDs, teacherNames, err := r.getLessonTeachers(lessons[i].ID)
 		if err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_teachers_failed")+": %w", err)
 		}
-		lesson.TeacherIDs = teacherIDs
-		lesson.TeacherNames = teacherNames
-
-		lessons = append(lessons, lesson)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.iterate_failed")+": %w", err)
+		lessons[i].TeacherIDs = teacherIDs
+		lessons[i].TeacherNames = teacherNames
 	}
 
 	return lessons, nil
@@ -474,15 +476,15 @@ func (r *LessonsRepository) GetBySemesterID(semesterID int64) ([]Lesson, error) 
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_all_failed")+": %w", err)
 	}
-	defer rows.Close()
 
+	// Считываем базовые поля всех занятий выбранного семестра
 	var lessons []Lesson
 	for rows.Next() {
 		var lesson Lesson
 		var semesterName, directionName sql.NullString
 		var teacherCount sql.NullInt64
 
-		err := rows.Scan(
+		if err := rows.Scan(
 			&lesson.ID,
 			&lesson.SemesterID,
 			&lesson.DayOfWeek,
@@ -492,8 +494,7 @@ func (r *LessonsRepository) GetBySemesterID(semesterID int64) ([]Lesson, error) 
 			&teacherCount,
 			&semesterName,
 			&directionName,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.scan_failed")+": %w", err)
 		}
 
@@ -501,7 +502,6 @@ func (r *LessonsRepository) GetBySemesterID(semesterID int64) ([]Lesson, error) 
 			count := int(teacherCount.Int64)
 			lesson.TeacherCount = &count
 		}
-
 		if semesterName.Valid {
 			lesson.SemesterName = semesterName.String
 		}
@@ -509,26 +509,30 @@ func (r *LessonsRepository) GetBySemesterID(semesterID int64) ([]Lesson, error) 
 			lesson.DirectionName = directionName.String
 		}
 
-		// Получаем связанные факультеты и преподавателей для каждого занятия
-		facultyIDs, facultyNames, err := r.getLessonFaculties(lesson.ID)
+		lessons = append(lessons, lesson)
+	}
+	if err = rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.iterate_failed")+": %w", err)
+	}
+	// Закрываем курсор до выполнения дополнительных запросов
+	_ = rows.Close()
+
+	// Для каждого занятия подгружаем связи уже после закрытия курсора
+	for i := range lessons {
+		facultyIDs, facultyNames, err := r.getLessonFaculties(lessons[i].ID)
 		if err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_faculties_failed")+": %w", err)
 		}
-		lesson.FacultyIDs = facultyIDs
-		lesson.FacultyNames = facultyNames
+		lessons[i].FacultyIDs = facultyIDs
+		lessons[i].FacultyNames = facultyNames
 
-		teacherIDs, teacherNames, err := r.getLessonTeachers(lesson.ID)
+		teacherIDs, teacherNames, err := r.getLessonTeachers(lessons[i].ID)
 		if err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_teachers_failed")+": %w", err)
 		}
-		lesson.TeacherIDs = teacherIDs
-		lesson.TeacherNames = teacherNames
-
-		lessons = append(lessons, lesson)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.iterate_failed")+": %w", err)
+		lessons[i].TeacherIDs = teacherIDs
+		lessons[i].TeacherNames = teacherNames
 	}
 
 	return lessons, nil

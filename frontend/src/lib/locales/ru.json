@@ -23,6 +23,8 @@
   "assign_teachers": "Привязка преподавателей",
   "search_placeholder": "Поиск",
   "assigned": "Назначен",
+  "assigned_to_direction": "Уже привязан к",
+  "will_assign": "Назначен",
   "edit_teacher": "Редактирование преподавателя",
   "create_teacher": "Создать преподавателя",
   "teacher_last_name": "Фамилия",
