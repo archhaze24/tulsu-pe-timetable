@@ -183,6 +183,8 @@ func (r *LessonsRepository) GetAll() ([]Lesson, error) {
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_all_failed")+": %w", err)
 	}
+	// Гарантируем закрытие курсора даже при ранних возвратах (ошибка Scan и т.п.)
+	defer rows.Close()
 
 	// Сначала считываем базовые поля всех занятий, чтобы освободить курсор и соединение
 	var lessons []Lesson
@@ -476,6 +478,8 @@ func (r *LessonsRepository) GetBySemesterID(semesterID int64) ([]Lesson, error) 
 	if err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.lessons.get_all_failed")+": %w", err)
 	}
+	// Гарантируем закрытие курсора даже при ранних возвратах (ошибка Scan и т.п.)
+	defer rows.Close()
 
 	// Считываем базовые поля всех занятий выбранного семестра
 	var lessons []Lesson

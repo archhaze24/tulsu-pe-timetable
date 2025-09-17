@@ -42,9 +42,6 @@ func NewApp(cfg *config.Config) (*App, error) {
 // so we can call the runtime methods
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
-	if a.logger != nil {
-		_ = a.logger.ArchiveIfNeeded()
-	}
 }
 
 // shutdown is called when the app shuts down

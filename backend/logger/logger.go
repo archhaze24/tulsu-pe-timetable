@@ -15,13 +15,14 @@ import (
 	"log/slog"
 )
 
-// Logger writes JSON logs to daily files and can archive old logs weekly.
+// Logger writes JSON logs to a per-session file and archives it on shutdown.
 type Logger struct {
-	mu          sync.Mutex
-	dir         string
-	file        *os.File
-	currentDate string // YYYY-MM-DD
-	slogger     *slog.Logger
+	mu           sync.Mutex
+	dir          string
+	file         *os.File
+	sessionStart time.Time
+	filename     string // full path to current session log file
+	slogger      *slog.Logger
 }
 
 // NewLogger creates a new logger. Logs are stored under <dbDir>/logs.
@@ -32,8 +33,8 @@ func NewLogger(dbPath string) (*Logger, error) {
 		return nil, fmt.Errorf("failed to create logs dir: %w", err)
 	}
 
-	l := &Logger{dir: logDir}
-	if err := l.rotateIfNeededLocked(time.Now()); err != nil {
+	l := &Logger{dir: logDir, sessionStart: time.Now()}
+	if err := l.openIfNeededLocked(); err != nil {
 		return nil, err
 	}
 	l.slogger = slog.New(slog.NewJSONHandler(l.file, &slog.HandlerOptions{AddSource: true, Level: slog.LevelInfo}))
@@ -44,36 +45,43 @@ func NewLogger(dbPath string) (*Logger, error) {
 func (l *Logger) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.file != nil {
-		return l.file.Close()
+	if l.file == nil {
+		return nil
 	}
+	// Close the file to flush all buffers
+	_ = l.file.Close()
+	// Archive current session log into a zip file and remove the original
+	if l.filename != "" {
+		archiveName := strings.TrimSuffix(l.filename, ".jsonl") + ".zip"
+		if err := zipFiles(archiveName, []string{l.filename}); err != nil {
+			return err
+		}
+		_ = os.Remove(l.filename)
+	}
+	l.file = nil
 	return nil
 }
 
-func (l *Logger) ensure(today time.Time) error {
+func (l *Logger) ensure() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.rotateIfNeededLocked(today)
+	return l.openIfNeededLocked()
 }
 
-func (l *Logger) rotateIfNeededLocked(now time.Time) error {
-	date := now.Format("2006-01-02")
-	if l.file != nil && l.currentDate == date {
+func (l *Logger) openIfNeededLocked() error {
+	if l.file != nil {
 		return nil
 	}
-	// Close old file
-	if l.file != nil {
-		_ = l.file.Close()
-		l.file = nil
+	// Open session file once, named by program start date+time (YYYY-MM-DD_HH-MM-SS)
+	if l.filename == "" {
+		stamp := l.sessionStart.Format("2006-01-02_15-04-05")
+		l.filename = filepath.Join(l.dir, fmt.Sprintf("app-%s.jsonl", stamp))
 	}
-
-	filename := filepath.Join(l.dir, fmt.Sprintf("app-%s.jsonl", date))
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	f, err := os.OpenFile(l.filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return err
 	}
 	l.file = f
-	l.currentDate = date
 	if l.slogger != nil {
 		l.slogger = slog.New(slog.NewJSONHandler(l.file, &slog.HandlerOptions{AddSource: true, Level: slog.LevelInfo}))
 	}
@@ -82,7 +90,7 @@ func (l *Logger) rotateIfNeededLocked(now time.Time) error {
 
 // LogEndpoint writes a structured log for backend endpoint invocations.
 func (l *Logger) LogEndpoint(name string, request any, response any, errString string) {
-	_ = l.ensure(time.Now())
+	_ = l.ensure()
 	level := slog.LevelInfo
 	if strings.TrimSpace(errString) != "" {
 		level = slog.LevelError
@@ -97,77 +105,14 @@ func (l *Logger) LogEndpoint(name string, request any, response any, errString s
 
 // LogFrontendEvent writes a structured log for frontend UI events.
 func (l *Logger) LogFrontendEvent(name string, payload map[string]any) {
-	_ = l.ensure(time.Now())
+	_ = l.ensure()
 	l.slogger.LogAttrs(context.Background(), slog.LevelInfo, "frontend.event",
 		slog.String("name", name),
 		slog.Any("payload", payload),
 	)
 }
 
-// ArchiveIfNeeded performs a weekly archive of all daily logs (except today's file).
-// It uses a stamp file ".last_archive" to decide whether 7 days have passed since the last archive.
-func (l *Logger) ArchiveIfNeeded() error {
-	stampPath := filepath.Join(l.dir, ".last_archive")
-	needArchive := false
-
-	if data, err := os.ReadFile(stampPath); err == nil {
-		if t, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(string(data))); parseErr == nil {
-			if time.Since(t) >= 7*24*time.Hour {
-				needArchive = true
-			}
-		} else {
-			// invalid stamp -> archive now
-			needArchive = true
-		}
-	} else {
-		// no stamp -> archive now
-		needArchive = true
-	}
-
-	if !needArchive {
-		return nil
-	}
-
-	entries, err := os.ReadDir(l.dir)
-	if err != nil {
-		return err
-	}
-
-	todayName := fmt.Sprintf("app-%s.jsonl", time.Now().Format("2006-01-02"))
-	var filesToArchive []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		name := e.Name()
-		if !strings.HasPrefix(name, "app-") || !strings.HasSuffix(name, ".jsonl") {
-			continue
-		}
-		if name == todayName {
-			// keep today's file open and unarchived
-			continue
-		}
-		filesToArchive = append(filesToArchive, filepath.Join(l.dir, name))
-	}
-
-	if len(filesToArchive) == 0 {
-		// still update stamp to avoid re-checking every startup
-		_ = os.WriteFile(stampPath, []byte(time.Now().Format(time.RFC3339)), 0644)
-		return nil
-	}
-
-	archiveName := filepath.Join(l.dir, fmt.Sprintf("logs-archive-%s.zip", time.Now().Format("20060102")))
-	if err := zipFiles(archiveName, filesToArchive); err != nil {
-		return err
-	}
-	// Remove originals
-	for _, p := range filesToArchive {
-		_ = os.Remove(p)
-	}
-	// Update stamp
-	_ = os.WriteFile(stampPath, []byte(time.Now().Format(time.RFC3339)), 0644)
-	return nil
-}
+// Weekly archiving removed by design. Session logs are archived on shutdown.
 
 func zipFiles(destination string, files []string) error {
 	if len(files) == 0 {
