@@ -15,17 +15,15 @@ import (
 	"log/slog"
 )
 
-// Logger writes JSON logs to a per-session file and archives it on shutdown.
 type Logger struct {
 	mu           sync.Mutex
 	dir          string
 	file         *os.File
 	sessionStart time.Time
-	filename     string // full path to current session log file
+	filename     string
 	slogger      *slog.Logger
 }
 
-// NewLogger creates a new logger. Logs are stored under <dbDir>/logs.
 func NewLogger(dbPath string) (*Logger, error) {
 	dbDir := filepath.Dir(dbPath)
 	logDir := filepath.Join(dbDir, "logs")
@@ -41,16 +39,13 @@ func NewLogger(dbPath string) (*Logger, error) {
 	return l, nil
 }
 
-// Close closes the underlying file.
 func (l *Logger) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.file == nil {
 		return nil
 	}
-	// Close the file to flush all buffers
 	_ = l.file.Close()
-	// Archive current session log into a zip file and remove the original
 	if l.filename != "" {
 		archiveName := strings.TrimSuffix(l.filename, ".jsonl") + ".zip"
 		if err := zipFiles(archiveName, []string{l.filename}); err != nil {
@@ -72,7 +67,6 @@ func (l *Logger) openIfNeededLocked() error {
 	if l.file != nil {
 		return nil
 	}
-	// Open session file once, named by program start date+time (YYYY-MM-DD_HH-MM-SS)
 	if l.filename == "" {
 		stamp := l.sessionStart.Format("2006-01-02_15-04-05")
 		l.filename = filepath.Join(l.dir, fmt.Sprintf("app-%s.jsonl", stamp))
@@ -88,7 +82,6 @@ func (l *Logger) openIfNeededLocked() error {
 	return nil
 }
 
-// LogEndpoint writes a structured log for backend endpoint invocations.
 func (l *Logger) LogEndpoint(name string, request any, response any, errString string) {
 	_ = l.ensure()
 	level := slog.LevelInfo
@@ -103,7 +96,6 @@ func (l *Logger) LogEndpoint(name string, request any, response any, errString s
 	)
 }
 
-// LogFrontendEvent writes a structured log for frontend UI events.
 func (l *Logger) LogFrontendEvent(name string, payload map[string]any) {
 	_ = l.ensure()
 	l.slogger.LogAttrs(context.Background(), slog.LevelInfo, "frontend.event",
@@ -111,8 +103,6 @@ func (l *Logger) LogFrontendEvent(name string, payload map[string]any) {
 		slog.Any("payload", payload),
 	)
 }
-
-// Weekly archiving removed by design. Session logs are archived on shutdown.
 
 func zipFiles(destination string, files []string) error {
 	if len(files) == 0 {

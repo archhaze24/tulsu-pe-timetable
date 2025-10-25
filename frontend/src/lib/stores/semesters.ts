@@ -29,10 +29,8 @@ function mapSemesterFromBackend(s: any): Semester {
   const normalizeDate = (v: any): string => {
     const str = String(v ?? '')
     if (!str) return ''
-    // Accept formats like YYYY-MM-DD, YYYY-MM-DDTHH:mm:ssZ, or with space time part
     if (str.includes('T')) return str.split('T')[0]
     if (str.includes(' ')) return str.split(' ')[0]
-    // Trim potential trailing zeros like YYYY-MM-DD00:00:00
     return str.slice(0, 10)
   }
   return {
@@ -47,7 +45,6 @@ function mapLessonFromBackend(l: any): Lesson {
   const normalizeTime = (v: any): string => {
     const str = String(v ?? '')
     if (!str) return ''
-    // Reduce HH:MM:SS -> HH:MM
     const parts = str.split(':')
     if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
     return str
@@ -65,7 +62,6 @@ function mapLessonFromBackend(l: any): Lesson {
   }
 }
 
-// Semesters API-backed actions
 export async function loadSemesters(): Promise<void> {
   try {
     const resp = await App.GetSemesters()
@@ -169,14 +165,12 @@ export async function restoreSemester(id: number): Promise<boolean> {
   }
 }
 
-// Lessons API-backed actions
 export async function loadLessonsBySemester(semesterId: number): Promise<void> {
   if (!semesterId) return
   try {
     const resp = await App.GetLessonsBySemester(semesterId)
     if (resp.error) {
       console.error('GetLessonsBySemester error:', resp.error)
-      // Clear only that semester's lessons
       lessonsStore.update(list => list.filter(l => l.semesterId !== semesterId))
       return
     }
@@ -218,7 +212,6 @@ export async function addLesson(data: Omit<Lesson, 'id'>): Promise<Lesson | null
 
     const created = mapLessonFromBackend(resp.data)
     console.log('Created lesson:', created)
-    // Ensure frontend reflects DB truth
     await loadLessonsBySemester(data.semesterId)
     return created
   } catch (e) {
@@ -249,7 +242,6 @@ export async function updateLesson(id: number, changes: Partial<Omit<Lesson, 'id
       return null
     }
     const updated = mapLessonFromBackend(resp.data)
-    // Reload to stay consistent with DB (links + derived fields)
     await loadLessonsBySemester(next.semesterId)
     return updated
   } catch (e) {
@@ -267,7 +259,6 @@ export async function deleteLesson(id: number): Promise<boolean> {
       console.error('DeleteLesson error:', resp.error)
       return false
     }
-    // Remove locally and then reload this semester from DB to avoid desync
     lessonsStore.update(list => list.filter(l => l.id !== id))
     if (semId) {
       await loadLessonsBySemester(semId)

@@ -11,7 +11,6 @@ func init() {
 	goose.AddMigration(upSafeColumns, downSafeColumns)
 }
 
-// upSafeColumns adds missing columns safely for legacy DBs
 func upSafeColumns(tx *sql.Tx) error {
 	type addColumnPlan struct {
 		table  string
@@ -42,7 +41,6 @@ func upSafeColumns(tx *sql.Tx) error {
 		}
 	}
 
-	// Normalize NULLs to '' for middle_name
 	if exists, err := columnExists(tx, "teachers", "middle_name"); err != nil {
 		return fmt.Errorf("column check failed teachers.middle_name: %w", err)
 	} else if exists {
@@ -54,13 +52,10 @@ func upSafeColumns(tx *sql.Tx) error {
 	return nil
 }
 
-// downSafeColumns performs best-effort down migration (no-op due to SQLite limitations)
 func downSafeColumns(tx *sql.Tx) error {
-	// No-op: dropping columns in SQLite is non-trivial and destructive
 	return nil
 }
 
-// columnExists checks presence of a column in SQLite table using PRAGMA table_info
 func columnExists(qe interface {
 	Query(string, ...any) (*sql.Rows, error)
 }, tableName string, columnName string) (bool, error) {

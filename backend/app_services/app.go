@@ -17,7 +17,6 @@ type App struct {
 	logger  *logger.Logger
 }
 
-// NewApp creates a new App application struct
 func NewApp(cfg *config.Config) (*App, error) {
 	// Инициализируем storage
 	storage, err := storage.NewStorage(cfg)
@@ -38,13 +37,10 @@ func NewApp(cfg *config.Config) (*App, error) {
 	}, nil
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-// shutdown is called when the app shuts down
 func (a *App) Shutdown(ctx context.Context) {
 	if a.storage != nil {
 		a.storage.Close()
@@ -54,7 +50,6 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 }
 
-// helper to log backend endpoints
 func (a *App) logEndpoint(name string, request any, response any, errString string) {
 	if a.logger != nil {
 		a.logger.LogEndpoint(name, request, response, errString)
@@ -127,8 +122,6 @@ func (a *App) GetConfigPath() ApiResponse[string] {
 	a.logEndpoint("GetConfigPath", nil, resp, resp.Error)
 	return resp
 }
-
-// ===== Directions API =====
 
 // CreateDirection создает новое направление
 func (a *App) CreateDirection(req storage.CreateDirectionRequest) ApiResponse[*storage.Direction] {
@@ -238,8 +231,6 @@ func (a *App) RestoreDirection(id int64) ApiResponse[bool] {
 	return resp
 }
 
-// ===== Faculties API =====
-
 // CreateFaculty создает новый факультет
 func (a *App) CreateFaculty(req storage.CreateFacultyRequest) ApiResponse[*storage.Faculty] {
 	faculty, err := a.storage.Faculties.Create(req)
@@ -344,8 +335,6 @@ func (a *App) RestoreFaculty(id int64) ApiResponse[bool] {
 	a.logEndpoint("RestoreFaculty", map[string]any{"id": id}, resp, resp.Error)
 	return resp
 }
-
-// ===== Teachers API =====
 
 // CreateTeacher создает нового преподавателя
 func (a *App) CreateTeacher(req storage.CreateTeacherRequest) ApiResponse[*storage.Teacher] {
@@ -452,8 +441,6 @@ func (a *App) RestoreTeacher(id int64) ApiResponse[bool] {
 	return resp
 }
 
-// ===== Lessons API =====
-
 // CreateLesson создает новое занятие
 func (a *App) CreateLesson(req storage.CreateLessonRequest) ApiResponse[*storage.Lesson] {
 	lesson, err := a.storage.Lessons.Create(req)
@@ -533,8 +520,6 @@ func (a *App) DeleteLesson(id int64) ApiResponse[bool] {
 	a.logEndpoint("DeleteLesson", map[string]any{"id": id}, resp, resp.Error)
 	return resp
 }
-
-// ===== Semesters API =====
 
 // GetSemesters получает все семестры
 func (a *App) GetSemesters() ApiResponse[[]storage.Semester] {

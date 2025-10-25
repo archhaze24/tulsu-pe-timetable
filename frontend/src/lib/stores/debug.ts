@@ -1,6 +1,5 @@
 import { writable } from 'svelte/store'
 
-// Управляет видимостью дебаг-меню
 export const debugMenuOpen = writable<boolean>(false)
 
 export function openDebugMenu(): void {

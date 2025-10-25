@@ -89,7 +89,6 @@ export async function addTeacher(data: Omit<Teacher, 'id'>): Promise<void> {
 
 export async function updateTeacher(id: number, changes: Partial<Omit<Teacher, 'id'>>): Promise<void> {
   try {
-    // Read the current teacher to merge changes for required fields
     let current: Teacher | undefined
     teachersStore.update(list => {
       current = list.find(t => t.id === id)

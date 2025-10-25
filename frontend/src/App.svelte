@@ -21,7 +21,6 @@
   import DebugMenu from './lib/components/ui/debug-menu.svelte'
   import { debugMenuOpen, toggleDebugMenu, closeDebugMenu } from './lib/stores/debug'
 
-  // Инициализация конфигурации при старте приложения
   let configData: config.Config | null = null
 
   async function loadConfig(): Promise<void> {
@@ -38,13 +37,11 @@
     }
   }
 
-  // Загружаем конфигурацию при старте
   loadConfig()
 
   // Вспомогательное значение для передачи id семестра в редактор
   $: routeSemesterId = Number(($route.params as any)?.id ?? 0)
 
-  // Применяем тему: инициализируем стор из конфига и следим за изменениями
   $: if (configData?.theme) setTheme(configData.theme as any)
   $: {
     const htmlEl = typeof document !== 'undefined' ? document.documentElement : null
@@ -57,12 +54,10 @@
   async function onToggleTheme(): Promise<void> {
     const next = $theme === 'dark' ? 'light' : 'dark'
     setTheme(next as any)
-    // Сохраняем в конфиг
     const cfg: config.Config = { dbPath: configData?.dbPath || '', theme: next }
     configData = cfg
     const res = await UpdateConfig(cfg)
     if (res && res.error) {
-      // откат в случае ошибки
       const prev = next === 'dark' ? 'light' : 'dark'
       setTheme(prev as any)
       configData = { dbPath: cfg.dbPath, theme: prev } as config.Config
@@ -82,7 +77,6 @@
 
 <main class="min-h-screen bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-50 font-sans { $route.name === 'schedule' ? '' : 'flex items-center justify-center' }">
   {#if $route.name === 'home'}
-    <!-- Кнопка переключения темы только на главной -->
     <button class="fixed top-2 right-3 z-50 rounded-md px-3 py-1.5 text-base transition hover:opacity-80 bg-white/70 dark:bg-slate-800/60 ring-1 ring-black/10 dark:ring-white/10 backdrop-blur"
       title={$theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} aria-label={$theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} on:click={onToggleTheme}>
       {#if $theme === 'dark'}
