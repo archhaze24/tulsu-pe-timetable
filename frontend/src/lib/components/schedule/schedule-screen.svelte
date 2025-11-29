@@ -1,15 +1,15 @@
 <script lang="ts">
   import { t } from 'svelte-i18n'
-  import { facultiesStore } from '../../stores/faculties'
+  import { facultiesStore, refreshFaculties, fetchArchivedFaculties, type Faculty } from '../../stores/faculties'
   import { directionsStore } from '../../stores/directions'
   import { teachersStore, formatTeacherName } from '../../stores/teachers'
   import { semesterTeachersStore, loadSemesterTeachers, bindTeacherToSemester, unbindTeacherFromSemester, type SemesterTeacher } from '../../stores/semester-teachers'
   import { lessonsStore, semestersStore, addLesson, deleteLesson, updateLesson, loadLessonsBySemester, loadSemesters, type Lesson } from '../../stores/semesters'
   import { navigate, route } from '../../stores/router'
-  import { onDestroy } from 'svelte'
+  import { onDestroy, onMount } from 'svelte'
   import { get } from 'svelte/store'
   import { refreshDirections } from '../../stores/directions'
-  import { refreshFaculties } from '../../stores/faculties'
+  
   import { logUiEvent } from '../../stores/logger'
   import * as App from '../../../../wailsjs/go/app_services/App.js'
 
@@ -22,6 +22,12 @@
   $: if (!$directionsStore || $directionsStore.length === 0) { refreshDirections() }
   $: if (!$facultiesStore || $facultiesStore.length === 0) { refreshFaculties() }
   $: semester = $semestersStore.find(s => s.id === semesterId)
+
+  // Include archived faculties for display of already assigned items
+  let archivedFaculties: Faculty[] = []
+  onMount(async () => {
+    archivedFaculties = await fetchArchivedFaculties()
+  })
 
   const days: { key: number; label: string }[] = [
     { key: 1, label: $t('mon') },
@@ -77,10 +83,16 @@
       .join(', ')
   }
 
+  function facultyById(id: number): Faculty | undefined {
+    return $facultiesStore.find(f => f.id === id) || archivedFaculties.find(f => f.id === id)
+  }
+
+  function facultyName(id: number): string {
+    return facultyById(id)?.name || ''
+  }
+
   function facultiesNames(ids: number[]): string {
-    return ids
-      .map(id => $facultiesStore.find(f => f.id === id)?.name || '')
-      .join(', ')
+    return ids.map(id => facultyName(id)).filter(Boolean).join(', ')
   }
 
   async function exportXLSX() {
@@ -456,8 +468,8 @@
                 {#key lessonsVersion + '-' + rowKey(d.key, slot)}
                   <div class="inline-flex flex-nowrap gap-1">
                     {#each facultiesForRow(d.key, slot) as fid}
-                      {#if $facultiesStore.find(f => f.id === fid)}
-                        <span class="px-2 py-1 text-[10px] rounded bg-slate-200 dark:bg-slate-700 truncate max-w-[80px]" title={$facultiesStore.find(f => f.id === fid)?.name}>{$facultiesStore.find(f => f.id === fid)?.name}</span>
+                      {#if facultyById(fid)}
+                        <span class="px-2 py-1 text-[10px] rounded bg-slate-200 dark:bg-slate-700 truncate max-w-[80px]" title={facultyName(fid)}>{facultyName(fid)}</span>
                       {/if}
                     {/each}
                     <button class="px-2 py-1 text-xs rounded bg-slate-100 hover:bg-slate-200 ring-1 ring-black/10 dark:bg-slate-800 dark:hover:bg-slate-700 dark:ring-white/10" on:click={(e) => openFacultyPopover(e, d.key, slot)} data-log-action="open_faculty_popover">+</button>

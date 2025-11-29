@@ -27,7 +27,7 @@ func main() {
 	}
 
 	err = wails.Run(&options.App{
-		Title:  "tulsu-pe-timetable",
+		Title:  "Расписание ТулГУ по физкультуре",
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
