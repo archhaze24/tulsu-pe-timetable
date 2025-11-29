@@ -76,7 +76,6 @@ func (d *Database) Close() error {
 }
 
 // GetDB возвращает указатель на sql.DB для прямого доступа
-
 func (d *Database) GetDB() *sql.DB {
 	return d.db
 }

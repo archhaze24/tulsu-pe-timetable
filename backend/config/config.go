@@ -11,8 +11,7 @@ import (
 // Config структура конфигурации приложения
 type Config struct {
 	DbPath string `json:"dbPath"`
-	// Theme defines UI theme preference: "light" or "dark"
-	Theme string `json:"theme"`
+	Theme  string `json:"theme"`
 }
 
 // GetConfigPath возвращает путь к файлу конфигурации в зависимости от ОС
@@ -56,7 +55,6 @@ func LoadConfig() (*Config, error) {
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf(locales.GetMessage("errors.config.parse_failed")+": %w", err)
 	}
-	// Backfill defaults if fields are missing
 	if config.Theme == "" {
 		config.Theme = "light"
 		_ = SaveConfig(&config)

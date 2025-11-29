@@ -16,7 +16,6 @@
   $: current = $semestersStore.find(s => s.id === id)
   $: if (current && lastInitId !== current.id) {
     name = current.name
-    // Ensure date inputs receive only YYYY-MM-DD
     startDate = (current.startDate || '').split('T')[0].split(' ')[0]
     endDate = (current.endDate || '').split('T')[0].split(' ')[0]
     lastInitId = current.id

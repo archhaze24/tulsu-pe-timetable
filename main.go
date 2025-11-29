@@ -21,13 +21,11 @@ func main() {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
 
-	// Create an instance of the app structure
 	app, err := app_services.NewApp(cfg)
 	if err != nil {
 		log.Fatalf("Ошибка инициализации приложения: %v", err)
 	}
 
-	// Create application with options
 	err = wails.Run(&options.App{
 		Title:  "Расписание ТулГУ по физкультуре",
 		Width:  1024,
@@ -47,5 +45,3 @@ func main() {
 		println("Error:", err.Error())
 	}
 }
-
-// Удаляем старые неиспользуемые функции и типы

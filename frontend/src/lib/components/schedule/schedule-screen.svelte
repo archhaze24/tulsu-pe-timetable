@@ -18,9 +18,7 @@
   $: semesterId = Number($route.params?.id ?? 0) || $semestersStore[0]?.id || 0
   $: if (semesterId) { loadSemesterTeachers(semesterId) }
   $: if (semesterId) { loadLessonsBySemester(semesterId) }
-  // Ensure semesters list is present if user navigates directly
   $: if (!$semestersStore || $semestersStore.length === 0) { loadSemesters() }
-  // Ensure directions & faculties are loaded for slot creation and rendering
   $: if (!$directionsStore || $directionsStore.length === 0) { refreshDirections() }
   $: if (!$facultiesStore || $facultiesStore.length === 0) { refreshFaculties() }
   $: semester = $semestersStore.find(s => s.id === semesterId)
@@ -55,7 +53,6 @@
     })
   )
 
-  // Dynamic teacher column sizing
   let containerWidth = 0
   let dayHeaderEl: HTMLTableCellElement
   let timeHeaderEl: HTMLTableCellElement
@@ -111,7 +108,6 @@
       if (resp?.data) {
         logUiEvent('export_xlsx_success', { semesterId, path: resp.data })
       } else {
-        // User cancelled in save dialog
         logUiEvent('export_xlsx_cancelled', { semesterId })
       }
     } catch (e) {
@@ -120,9 +116,6 @@
     }
   }
 
-  // Removed manual save: changes persist automatically
-
-  // Manage teachers modal
   let manageOpen = false
   let teacherSearch = ''
   function openManage() { manageOpen = true; logUiEvent('click:open_manage_teachers', { semesterId }); loadSemesterTeachers(semesterId) }
@@ -145,7 +138,6 @@
     }
   }
 
-  // Add time slot popover (anchored to header button)
   type Point = { x: number; y: number }
   let addSlotPopover: Point | null = null
   let addSlotDay: number = 1
@@ -171,7 +163,6 @@
       alert($t('slot_exists'))
       return
     }
-    // Ensure we have a direction to persist placeholder lesson
     let directionId = get(directionsStore)[0]?.id
     if (!directionId) {
       await refreshDirections()
@@ -208,13 +199,11 @@
     console.log(`toggleTeacherOnCell: start=${start}, end=${end}, existing=${!!existing}`)
 
     if (existing) {
-      // If this lesson contains the only teacher for this slot, keep a blank placeholder instead of deleting the row
       const isLastTeacherInLesson = (existing.teacherIds?.length ?? 0) <= 1
       const slotLessonsAll = cellLessons(day, slot)
       const isOnlyLessonInSlot = slotLessonsAll.length <= 1
 
       if (!isLastTeacherInLesson) {
-        // Remove only this teacher from the multi-teacher lesson
         const nextTeacherIds = (existing.teacherIds || []).filter(id => id !== teacherId)
         console.log('toggleTeacherOnCell: removing teacher from multi-teacher lesson', existing.id, nextTeacherIds)
         await updateLesson(existing.id, { teacherIds: nextTeacherIds, teacherCount: nextTeacherIds.length })
@@ -222,7 +211,6 @@
       }
 
       if (isOnlyLessonInSlot) {
-        // Convert to placeholder to preserve the time slot row
         console.log('toggleTeacherOnCell: converting last lesson in slot to placeholder', existing.id)
         await updateLesson(existing.id, { teacherIds: [], teacherCount: undefined })
         return
@@ -233,13 +221,11 @@
       return
     }
 
-    // If a placeholder lesson exists for this slot (no assigned teachers), reuse it
     const slotLessons = cellLessons(day, slot)
     const blank = slotLessons.find(l => (l.teacherIds ?? []).length === 0)
 
     const teacherRec = get(semesterTeachersStore).find(t => t.id === teacherId)
 
-    // Determine a valid directionId: prefer teacher's, otherwise first available direction after refresh
     let directionId = teacherRec?.directionId
     const dirList = get(directionsStore)
     const hasValidTeacherDirection = directionId && dirList.some(d => d.id === directionId)
@@ -286,14 +272,12 @@
     console.log('toggleTeacherOnCell: addLesson result:', result)
   }
 
-  // Faculties per row (day+slot)
   function rowKey(day: number, slot: string): string { return `${semesterId}-${day}-${slot}` }
   function facultiesForRow(day: number, slot: string): number[] {
     const union = Array.from(new Set(
       cellLessons(day, slot).flatMap(l => l.facultyIds)
     ))
-    // Filter out ids that don't exist in active or archived lists to avoid empty chips
-    const valid = union.filter(id => Boolean(facultyById(id)))
+    const valid = union.filter(id => $facultiesStore.some(f => f.id === id))
     return valid
   }
   async function toggleRowFaculty(day: number, slot: string, facultyId: number) {
@@ -301,13 +285,11 @@
     const current = facultiesForRow(day, slot)
     const exists = current.includes(facultyId)
     const next = exists ? current.filter(id => id !== facultyId) : [...current, facultyId]
-    // propagate mock change into lessons on that row
     const [start, end] = slot.split('-')
     const affected = $lessonsStore.filter(l => l.semesterId === semesterId && l.dayOfWeek === day && l.startTime === start && l.endTime === end)
     if (affected.length === 0) return
     await Promise.all(affected.map(l => updateLesson(l.id, { facultyIds: next })))
   }
-  // Single floating faculty popover anchored to the "+" button
   let facultyPopover: { day: number; slot: string; pos: Point } | null = null
   function openFacultyPopover(e: MouseEvent, day: number, slot: string) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -324,9 +306,7 @@
     logUiEvent('click:open_faculty_popover', { semesterId, day, slot, openBelow })
   }
   function closeFacultyPopover() { facultyPopover = null; logUiEvent('click:close_faculty_popover', { semesterId }) }
-  // Re-render is driven by lessonsVersion
 
-  // Rate info per teacher (12 pairs/week = 1.0 rate)
   function rateInfo(teacherId: number) {
     const RATE_FULL = 12
     const assigned = $lessonsStore.filter(l => l.semesterId === semesterId && l.teacherIds.includes(teacherId)).length
@@ -344,12 +324,10 @@
       : base + 'bg-slate-100 hover:bg-slate-200 text-transparent dark:bg-slate-900 dark:hover:bg-slate-800'
   }
 
-  // Force re-render for lessons changes so "+" and rates update instantly
   let lessonsVersion = 0
   const unsubscribeLessons = lessonsStore.subscribe(() => { lessonsVersion += 1 })
   onDestroy(unsubscribeLessons)
 
-  // Helpers for time slots
   function parseSlot(slot: string): { start: string; end: string } {
     const raw = String(slot ?? '')
     const [startRaw, endRaw] = raw.split('-')

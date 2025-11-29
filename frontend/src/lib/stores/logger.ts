@@ -14,7 +14,6 @@ export async function logUiEvent(name: string, payload: FrontendPayload = {}) {
     }
     await LogClientEvent(name, enriched as any)
   } catch (e) {
-    // swallow errors to avoid breaking UI; logging is best-effort
     console.warn('logUiEvent failed', e)
   }
 }

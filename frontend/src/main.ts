@@ -7,12 +7,10 @@ const app = new App({
   target: document.getElementById('app')
 })
 
-// Global UI click logger (buttons and elements with data-log-action)
 window.addEventListener('click', (ev) => {
   const target = ev.target as HTMLElement | null
   if (!target) return
 
-  // Find nearest actionable element
   const el = target.closest('button, [role="button"], [data-log-action]') as HTMLElement | null
   if (!el) return
 
@@ -23,7 +21,6 @@ window.addEventListener('click', (ev) => {
     classes: el.className || undefined,
     text: getElementText(el),
   }
-  // Include dataset attributes
   for (const [k, v] of Object.entries(el.dataset)) {
     payload[`data_${k}`] = v
   }
