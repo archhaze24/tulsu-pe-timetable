@@ -71,6 +71,11 @@ func (r *LessonsRepository) Create(req CreateLessonRequest) (*Lesson, error) {
 		}
 	}
 
+	// Проверяем лимит преподавателей, если он задан
+	if req.TeacherCount != nil && len(req.TeacherIDs) > *req.TeacherCount {
+		return nil, fmt.Errorf("%s", fmt.Sprintf(locales.GetMessage("errors.lessons.teacher_count_exceeded"), *req.TeacherCount))
+	}
+
 	// Добавляем связи с преподавателями
 	log.Printf("CreateLesson: adding %d teacher links", len(req.TeacherIDs))
 	for _, teacherID := range req.TeacherIDs {
@@ -296,6 +301,11 @@ func (r *LessonsRepository) Update(req UpdateLessonRequest) (*Lesson, error) {
 		if err != nil {
 			return nil, fmt.Errorf(locales.GetMessage("errors.lessons.create_faculty_link_failed")+": %w", err)
 		}
+	}
+
+	// Проверяем лимит преподавателей, если он задан
+	if req.TeacherCount != nil && len(req.TeacherIDs) > *req.TeacherCount {
+		return nil, fmt.Errorf("%s", fmt.Sprintf(locales.GetMessage("errors.lessons.teacher_count_exceeded"), *req.TeacherCount))
 	}
 
 	// Удаляем старые связи с преподавателями
