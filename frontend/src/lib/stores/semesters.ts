@@ -206,7 +206,10 @@ export async function addLesson(data: Omit<Lesson, 'id'>): Promise<Lesson | null
 
     if (resp.error) {
       console.error('CreateLesson error:', resp.error)
-      alert(`Ошибка при создании занятия: ${resp.error}`)
+      // Не показываем alert для ошибок превышения лимита - они обрабатываются на уровне компонента
+      if (!resp.error.includes('кол-во преподавателей')) {
+        alert(`Ошибка при создании занятия: ${resp.error}`)
+      }
       return null
     }
 
@@ -239,6 +242,8 @@ export async function updateLesson(id: number, changes: Partial<Omit<Lesson, 'id
     })
     if (resp.error) {
       console.error('UpdateLesson error:', resp.error)
+      // Не показываем alert для ошибок превышения лимита - они обрабатываются на уровне компонента
+      // Просто возвращаем null, компонент сам покажет уведомление
       return null
     }
     const updated = mapLessonFromBackend(resp.data)

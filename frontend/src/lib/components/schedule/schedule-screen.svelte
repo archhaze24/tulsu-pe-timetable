@@ -57,9 +57,10 @@
   let dayHeaderEl: HTMLTableCellElement
   let timeHeaderEl: HTMLTableCellElement
   let facultyHeaderEl: HTMLTableCellElement
+  let teacherCountHeaderEl: HTMLTableCellElement
   let deleteHeaderEl: HTMLTableCellElement
   const MIN_TEACHER_COL_PX = 96
-  $: fixedColsTotalPx = (dayHeaderEl?.offsetWidth || 0) + (timeHeaderEl?.offsetWidth || 0) + (facultyHeaderEl?.offsetWidth || 0) + (deleteHeaderEl?.offsetWidth || 0)
+  $: fixedColsTotalPx = (dayHeaderEl?.offsetWidth || 0) + (timeHeaderEl?.offsetWidth || 0) + (facultyHeaderEl?.offsetWidth || 0) + (teacherCountHeaderEl?.offsetWidth || 0) + (deleteHeaderEl?.offsetWidth || 0)
   $: teacherColsCount = boundTeachers.length
   $: teacherColWidthPx = Math.max(
     MIN_TEACHER_COL_PX,
@@ -69,6 +70,19 @@
   function cellLessons(day: number, slot: string): Lesson[] {
     const [start, end] = slot.split('-')
     return lessons.filter(l => l.dayOfWeek === day && l.startTime === start && l.endTime === end)
+  }
+
+  function teacherCountForSlot(day: number, slot: string): { current: number; max: number | undefined } {
+    const slotLessons = cellLessons(day, slot)
+    if (slotLessons.length === 0) return { current: 0, max: undefined }
+    // Берем максимальное значение teacher_count из всех пар в слоте
+    const teacherCounts = slotLessons
+      .map(l => l.teacherCount)
+      .filter((c): c is number => c !== undefined)
+    const maxCount = teacherCounts.length > 0 ? Math.max(...teacherCounts) : undefined
+    // Подсчитываем уникальных преподавателей во всех парах слота
+    const allTeacherIds = new Set(slotLessons.flatMap(l => l.teacherIds || []))
+    return { current: allTeacherIds.size, max: maxCount }
   }
 
   function dirName(id: number): string {
@@ -118,6 +132,21 @@
 
   let manageOpen = false
   let teacherSearch = ''
+  let notificationMessage = ''
+  let notificationTimeout: ReturnType<typeof setTimeout> | null = null
+
+  function showNotification(message: string) {
+    notificationMessage = message
+    if (notificationTimeout) clearTimeout(notificationTimeout)
+    notificationTimeout = setTimeout(() => {
+      notificationMessage = ''
+      notificationTimeout = null
+    }, 3000)
+  }
+
+  onDestroy(() => {
+    if (notificationTimeout) clearTimeout(notificationTimeout)
+  })
   function openManage() { manageOpen = true; logUiEvent('click:open_manage_teachers', { semesterId }); loadSemesterTeachers(semesterId) }
   function closeManage() { manageOpen = false; logUiEvent('click:close_manage_teachers', { semesterId }) }
   $: filteredSemesterTeachersList = (() => {
@@ -143,6 +172,7 @@
   let addSlotDay: number = 1
   let addSlotStart = '09:40'
   let addSlotEnd = '11:15'
+  let addSlotTeacherCount: number | undefined = undefined
   function openAddSlot(e: MouseEvent) {
     logUiEvent('click:open_add_slot', { semesterId })
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -157,6 +187,10 @@
   function closeAddSlot() { addSlotPopover = null; logUiEvent('click:close_add_slot', { semesterId }) }
   async function createTimeSlot() {
     if (!semesterId) return
+    if (!addSlotTeacherCount || addSlotTeacherCount < 1) {
+      alert($t('teacher_count_required'))
+      return
+    }
     const slot = normalizeSlot(`${addSlotStart}-${addSlotEnd}`)
     const current = dayToSlots.get(addSlotDay) || []
     if (current.includes(slot)) {
@@ -181,7 +215,7 @@
       directionId,
       teacherIds: [],
       facultyIds: [],
-      teacherCount: undefined
+      teacherCount: addSlotTeacherCount
     })
     logUiEvent('click:create_time_slot', { semesterId, day: addSlotDay, start: addSlotStart, end: addSlotEnd })
     addSlotPopover = null
@@ -206,13 +240,15 @@
       if (!isLastTeacherInLesson) {
         const nextTeacherIds = (existing.teacherIds || []).filter(id => id !== teacherId)
         console.log('toggleTeacherOnCell: removing teacher from multi-teacher lesson', existing.id, nextTeacherIds)
-        await updateLesson(existing.id, { teacherIds: nextTeacherIds, teacherCount: nextTeacherIds.length })
+        // Сохраняем teacher_count из существующей пары, если он был задан
+        await updateLesson(existing.id, { teacherIds: nextTeacherIds, teacherCount: existing.teacherCount })
         return
       }
 
       if (isOnlyLessonInSlot) {
         console.log('toggleTeacherOnCell: converting last lesson in slot to placeholder', existing.id)
-        await updateLesson(existing.id, { teacherIds: [], teacherCount: undefined })
+        // Сохраняем teacher_count при удалении всех преподавателей, чтобы можно было добавить их обратно
+        await updateLesson(existing.id, { teacherIds: [], teacherCount: existing.teacherCount })
         return
       }
 
@@ -223,6 +259,16 @@
 
     const slotLessons = cellLessons(day, slot)
     const blank = slotLessons.find(l => (l.teacherIds ?? []).length === 0)
+
+    // Проверяем лимит преподавателей перед добавлением
+    const countInfo = teacherCountForSlot(day, slot)
+    // Если добавляем нового преподавателя, проверяем что текущее количество + 1 не превышает лимит
+    const wouldExceedLimit = countInfo.max !== undefined && (countInfo.current + 1) > countInfo.max
+    if (wouldExceedLimit) {
+      // Показываем уведомление справа снизу
+      showNotification($t('teacher_count_limit_reached').replace('{count}', String(countInfo.max)))
+      return
+    }
 
     const teacherRec = get(semesterTeachersStore).find(t => t.id === teacherId)
 
@@ -245,6 +291,21 @@
 
     console.log(`toggleTeacherOnCell: teacherRec=${JSON.stringify(teacherRec)}, directionId=${directionId}, facultyIds=${facultyIds}`)
 
+    // Используем teacher_count из blank пары, если она есть, иначе берем из других пар в слоте
+    let teacherCount = blank?.teacherCount
+    if (!teacherCount) {
+      const slotLessons = cellLessons(day, slot)
+      const teacherCounts = slotLessons
+        .map(l => l.teacherCount)
+        .filter((c): c is number => c !== undefined)
+      if (teacherCounts.length > 0) {
+        teacherCount = Math.max(...teacherCounts)
+      } else {
+        alert($t('teacher_count_required'))
+        return
+      }
+    }
+
     const lessonData = {
       semesterId,
       dayOfWeek: day as any,
@@ -253,23 +314,37 @@
       directionId,
       teacherIds: [teacherId],
       facultyIds: facultyIds,
-      teacherCount: 1
+      teacherCount: teacherCount
     }
 
     console.log('toggleTeacherOnCell: calling addLesson with data:', lessonData)
     if (blank) {
       console.log('toggleTeacherOnCell: updating placeholder lesson', blank.id)
-      await updateLesson(blank.id, {
+      const updated = await updateLesson(blank.id, {
         directionId,
         teacherIds: [teacherId],
         facultyIds: facultyIds,
-        teacherCount: 1
+        teacherCount: blank.teacherCount
       })
+      if (!updated) {
+        // Проверяем, не была ли это ошибка превышения лимита
+        const countInfoAfter = teacherCountForSlot(day, slot)
+        if (countInfoAfter.max !== undefined && countInfoAfter.current >= countInfoAfter.max) {
+          showNotification($t('teacher_count_limit_reached').replace('{count}', String(countInfoAfter.max)))
+        }
+      }
       return
     }
 
     const result = await addLesson(lessonData)
     console.log('toggleTeacherOnCell: addLesson result:', result)
+    if (!result) {
+      // Проверяем, не была ли это ошибка превышения лимита
+      const countInfoAfter = teacherCountForSlot(day, slot)
+      if (countInfoAfter.max !== undefined && countInfoAfter.current >= countInfoAfter.max) {
+        showNotification($t('teacher_count_limit_reached').replace('{count}', String(countInfoAfter.max)))
+      }
+    }
   }
 
   function rowKey(day: number, slot: string): string { return `${semesterId}-${day}-${slot}` }
@@ -400,6 +475,10 @@
           <div class="text-slate-400 text-center col-start-2 row-start-2 justify-self-center">—</div>
           <input class="w-24 rounded bg-white dark:bg-slate-800 px-2 py-1 ring-1 ring-slate-300 dark:ring-white/10 col-start-3 row-start-2" bind:value={addSlotEnd} on:change={() => logUiEvent('change:add_slot_end', { semesterId, value: addSlotEnd })} />
         </div>
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-slate-500 dark:text-slate-400 text-xs">{$t('teacher_count')}</div>
+          <input type="number" min="1" class="w-24 rounded bg-white dark:bg-slate-800 px-2 py-1 ring-1 ring-slate-300 dark:ring-white/10" bind:value={addSlotTeacherCount} on:change={() => logUiEvent('change:add_slot_teacher_count', { semesterId, value: addSlotTeacherCount })} placeholder={$t('empty')} />
+        </div>
         <div class="flex items-center justify-end gap-2 mt-1">
           <button class="rounded-md bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 px-3 py-1.5 text-xs" on:click={closeAddSlot}>{$t('cancel')}</button>
           <button class="rounded-md bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white px-3 py-1.5 text-xs" on:click={createTimeSlot}>{$t('create')}</button>
@@ -417,6 +496,7 @@
         {#each boundTeachers as _}
           <col style="width: var(--teacher-col-width)" />
         {/each}
+        <col style="width: 4rem" />
         <col style="width: 3.5rem" />
       </colgroup>
       <thead>
@@ -453,6 +533,9 @@
               </div>
             </th>
           {/each}
+          <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-center whitespace-normal" bind:this={teacherCountHeaderEl}>
+            <div class="text-xs leading-tight">{$t('teacher_count')}</div>
+          </th>
           <th class="p-2 border-b border-slate-200 dark:border-slate-700 text-right w-14" bind:this={deleteHeaderEl}></th>
         </tr>
       </thead>
@@ -494,6 +577,16 @@
                   {/key}
                 </td>
               {/each}
+              <td class="p-2 border-b border-slate-200 dark:border-slate-800 text-center align-middle">
+                {#key lessonsVersion + '-' + rowKey(d.key, slot)}
+                  <div class="text-xs text-slate-600 dark:text-slate-400">
+                    {(() => {
+                      const countInfo = teacherCountForSlot(d.key, slot)
+                      return countInfo.max !== undefined ? `${countInfo.current}/${countInfo.max}` : ''
+                    })()}
+                  </div>
+                {/key}
+              </td>
               <td class="p-2 border-b border-slate-200 dark:border-slate-800 text-right align-middle">
                 <button class="px-2 py-1 text-xs rounded bg-rose-600/90 hover:bg-rose-600 text-white" title={$t('delete')} aria-label={$t('delete')} on:click={() => deleteTimeSlotRow(d.key, slot)} data-log-action="delete_time_slot">×</button>
               </td>
@@ -555,6 +648,11 @@
       </div>
     </div>
   {/if}
+  {#if notificationMessage}
+    <div class="fixed bottom-4 right-4 z-50 rounded-lg bg-rose-600 text-white px-4 py-3 shadow-lg ring-1 ring-black/10 dark:ring-white/10 animate-fade-in">
+      <div class="text-sm font-medium">{notificationMessage}</div>
+    </div>
+  {/if}
   <style>
     :global(.custom-scroll) {
       scrollbar-color: rgba(99,102,241,0.5) rgba(255,255,255,0.06);
@@ -575,6 +673,19 @@
     }
     :global(.custom-scroll::-webkit-scrollbar-thumb:hover) {
       background: linear-gradient(180deg, rgba(199,210,254,1), rgba(165,180,252,1));
+    }
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .animate-fade-in {
+      animation: fade-in 0.2s ease-out;
     }
   </style>
 </div>
