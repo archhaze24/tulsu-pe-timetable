@@ -2,7 +2,7 @@ package logger
 
 import (
 	"archive/zip"
-	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,8 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"log/slog"
 )
 
 type Logger struct {
@@ -21,7 +19,6 @@ type Logger struct {
 	file         *os.File
 	sessionStart time.Time
 	filename     string
-	slogger      *slog.Logger
 }
 
 func NewLogger(dbPath string) (*Logger, error) {
@@ -35,7 +32,6 @@ func NewLogger(dbPath string) (*Logger, error) {
 	if err := l.openIfNeededLocked(); err != nil {
 		return nil, err
 	}
-	l.slogger = slog.New(slog.NewJSONHandler(l.file, &slog.HandlerOptions{AddSource: true, Level: slog.LevelInfo}))
 	return l, nil
 }
 
@@ -76,32 +72,59 @@ func (l *Logger) openIfNeededLocked() error {
 		return err
 	}
 	l.file = f
-	if l.slogger != nil {
-		l.slogger = slog.New(slog.NewJSONHandler(l.file, &slog.HandlerOptions{AddSource: true, Level: slog.LevelInfo}))
-	}
 	return nil
 }
 
-func (l *Logger) LogEndpoint(name string, request any, response any, errString string) {
-	_ = l.ensure()
-	level := slog.LevelInfo
-	if strings.TrimSpace(errString) != "" {
-		level = slog.LevelError
+func (l *Logger) appendJSON(level, msg string, fields map[string]any) {
+	b, err := json.Marshal(logRecord{
+		Time:    time.Now().UTC().Format(time.RFC3339Nano),
+		Level:   level,
+		Msg:     msg,
+		Context: fields,
+	})
+	if err != nil || l.file == nil {
+		return
 	}
-	l.slogger.LogAttrs(context.Background(), level, "backend.endpoint",
-		slog.String("endpoint", name),
-		slog.Any("request", request),
-		slog.Any("response", response),
-		slog.String("error", errString),
-	)
+	if _, err := l.file.Write(append(b, '\n')); err != nil {
+		return
+	}
+}
+
+type logRecord struct {
+	Time    string         `json:"time"`
+	Level   string         `json:"level"`
+	Msg     string         `json:"msg"`
+	Context map[string]any `json:"context,omitempty"`
+}
+
+func (l *Logger) LogEndpoint(name string, request any, response any, errString string) {
+	if err := l.ensure(); err != nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	level := "INFO"
+	if strings.TrimSpace(errString) != "" {
+		level = "ERROR"
+	}
+	l.appendJSON(level, "backend.endpoint", map[string]any{
+		"endpoint": name,
+		"request":  request,
+		"response": response,
+		"error":    errString,
+	})
 }
 
 func (l *Logger) LogFrontendEvent(name string, payload map[string]any) {
-	_ = l.ensure()
-	l.slogger.LogAttrs(context.Background(), slog.LevelInfo, "frontend.event",
-		slog.String("name", name),
-		slog.Any("payload", payload),
-	)
+	if err := l.ensure(); err != nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.appendJSON("INFO", "frontend.event", map[string]any{
+		"name":    name,
+		"payload": payload,
+	})
 }
 
 func zipFiles(destination string, files []string) error {
