@@ -1,7 +1,9 @@
 module tulsu-pe-timetable
 
-// Windows 7: собирайте с GOTOOLCHAIN=go1.20.14; на машине пользователя — WebView2 Runtime 109.x.
-// После сборки фронта: GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath .
+// Windows 7: собирайте с GOTOOLCHAIN=go1.20.14; на ПК — WebView2 Runtime 109.x.
+// Статическая сборка (без Wails CLI): GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOTOOLCHAIN=go1.20.14 go build -trimpath .
+// Через Wails 2.7.x: wails build … -compiler "$(GOTOOLCHAIN=go1.20.14 go env GOROOT)/bin/go" -platform windows/amd64 -skipbindings
+//   (без -compiler на новом Go паникует генератор; фронт заранее: cd frontend && pnpm run build).
 
 go 1.20
 
