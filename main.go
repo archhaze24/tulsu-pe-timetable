@@ -9,6 +9,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
 //go:embed all:frontend/dist
@@ -30,6 +31,10 @@ func main() {
 		Title:  "Расписание ТулГУ по физкультуре",
 		Width:  1024,
 		Height: 768,
+		// Fixed WebView2 (например 109 под Win7): распакуйте runtime в каталог msedgewebview2.exe.
+		Windows: &windows.Options{
+			WebviewBrowserPath: `C:\WebView2`,
+		},
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
