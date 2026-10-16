@@ -8,24 +8,29 @@
 направления (футбол, плавание), преподаватели со ставкой, факультеты, семестры и пары.
 Пары одного дня идут для разных факультетов, на них назначаются преподаватели. Полная ставка — 12 занятий в неделю.
 
-В репозитории две версии:
+Стек: Tauri 2 (Rust) + Svelte 5 (runes) + TypeScript + Tailwind 4. Миграция с Go + Wails завершена и влита в `main`.
 
 | Ветка | Что | Статус |
 |---|---|---|
-| `main` | Go + Wails + Svelte (`backend/`, `frontend/`) | Рабочая, **эталон поведения** |
-| `rust-rewrite` | Tauri 2 + Rust (`src-tauri/`) + Svelte (`frontend/`) | Миграция в процессе |
-
-Миграция на Tauri завершена; дальнейшая работа — в `rust-rewrite`.
+| `main` | Tauri 2 + Rust (`src-tauri/`) + Svelte (`frontend/`) | Актуальная версия, здесь вся работа |
+| `legacy-go-version` | Go + Wails + Svelte (`backend/`, `frontend/`) | Только справка: эталон поведения и совместимости. Не менять |
+| `legacy-go-version-win7` | Версия под Windows 7 | Только справка |
 
 ## Структура
 
 ```
+package.json           скрипты: dev, build, check, gen:types
+pnpm-workspace.yaml    воркспейс: корень + frontend (один lock-файл, один `pnpm install`)
+pnpm-lock.yaml         единый lock-файл для всего воркспейса
 frontend/              Svelte 5 (runes), Tailwind 4; дизайн не менять
   src/lib/api.ts       адаптер команд Tauri (контракт Go-методов, ответ { data, error })
-  src/lib/generated/   типы из Rust (ts-rs), не править руками: `cd frontend && pnpm gen:types`
+  src/lib/components/  экраны и компоненты (schedule/, teachers/, directions/, faculties/, ...)
+  src/lib/locales/     ru.json, строки интерфейса
+  src/lib/generated/   типы из Rust (ts-rs), не править руками: `pnpm gen:types`
 src-tauri/
   src/lib.rs           сборка Tauri, состояние, регистрация команд
-  src/commands.rs      команды (повторяют методы Go backend/app_services/app.go)
+  src/commands.rs      команды (повторяют методы Go из legacy-go-version: backend/app_services/app.go)
+  src/schedule.rs      логика расписания (лимиты, заглушки, назначения)
   src/storage/         SQLite-репозиторий и схема (совместима с Go)
   src/models.rs        модели с JSON-полями как в Go
   src/config.rs        config.json (dbPath, theme)
@@ -33,29 +38,34 @@ src-tauri/
   src/logger.rs        журнал рядом с базой
   src/error.rs         AppError (текст из locales/errors.json)
   tauri.conf.json      окно, dev/build-команды фронтенда
-rewrite_screenshots/  скриншоты пользователя: rewrite/ (наш UI), original/ (Wails)
 ```
 
-Логика расписания (лимиты, заглушки, факультеты строки) — во фронтенде (`schedule-screen.svelte`), как в Go.
+Логика расписания (лимиты, заглушки, факультеты строки) — в бэкенде (`src-tauri/src/schedule.rs`, `storage/`),
+как в Go. Фронтенд (`frontend/src/lib/components/schedule/schedule-screen.svelte`) отображает модель и вызывает команды.
 Новые методы API добавляй и в `commands.rs`, и в `api.ts` с тем же именем и формой ответа.
 
 ## Команды
 
-- Проверка Rust: `cd src-tauri && cargo check`. Основной способ проверить изменения бэкенда.
-- Проверка фронтенда: `cd frontend && pnpm run build` (и `pnpm run check` при изменении типов).
-- Запуск окна: `pnpm tauri dev`. **Только по явной просьбе пользователя.** Запускай в открытом диалоге, не в фоне,
+Всё ставится и запускается из корня. Отдельно `pnpm install` в `frontend/` не нужен: корень — это воркспейс.
+
+- `pnpm install` — установка зависимостей корня и `frontend/`.
+- `pnpm check` — `cargo check` + `svelte-check` + `vite build`. Основная проверка изменений.
+- `pnpm gen:types` — пересборка типов в `frontend/src/lib/generated/` после изменения структур в `src-tauri`.
+- `pnpm dev` — запуск окна. **Только по явной просьбе пользователя.** Запускай в открытом диалоге, не в фоне,
   без `timeout`, и дай пользователю остановить процесс. Если нужен запуск, спроси сначала.
-- Сборка без предупреждений — цель. Новый код не должен добавлять `warning`.
+- `pnpm build` — сборка приложения (Tauri bundle).
+
+Точечные проверки, если нужно: `cargo check --manifest-path src-tauri/Cargo.toml`, `pnpm --filter frontend run check`.
+
+Сборка без предупреждений — цель. Новый код не должен добавлять `warning`.
 
 Для команд, которым нужен доступ к кэшу cargo, сети или GUI, в песочнице нужен `unsandboxed` с понятным `reason`.
 
 ## Правила проекта
 
-Решения пользователя:
-
-- **Тесты** пока не пишем, но можно добавить позже по решению пользователя. Текущая проверка — `cargo check`, `pnpm run check`, `pnpm run build` и живой прогон.
+- **Тесты** пока не пишем, но можно добавить позже по решению пользователя. Текущая проверка — `pnpm check` и живой прогон.
 - **Не коммитить и не создавать ветки** без явной просьбы.
-- **Не трогать `main`.** Работа идёт в `rust-rewrite`.
+- **Ветку `legacy-go-version` не трогать.** Её используем только как эталон поведения.
 - **Бизнес-логика — в бэкенде** (`src-tauri/src/schedule.rs`, `storage/`). Фронтенд отображает модель и вызывает команды.
 - **Ошибки не `panic`.** Бэкенд возвращает `AppResult`/`ApiResponse` с кодом или текстом ошибки. Коды бизнес-ситуаций фронтенд переводит через i18n (`frontend/src/lib/locales/ru.json`).
 - **Кроссплатформенность.** Код должен работать на macOS, Windows и Linux. Пути — через `std::path` и `dirs`.
@@ -80,13 +90,14 @@ rewrite_screenshots/  скриншоты пользователя: rewrite/ (н�
 - Если меняешь схему — пиши идемпотентную миграцию в `storage/db.rs`, по образцу `safe_columns`.
 - Путь к базе по умолчанию: `~/.tulsu-pe-timetable/timetable.db`. Конфиг: системная папка конфигурации,
   `tulsu-pe-timetable/config.json`.
-- При сомнении в поведении — смотри Go/Svelte-код на `main` (`backend/`, `frontend/src/lib/components/`).
+- При сомнении в поведении — смотри код ветки `legacy-go-version` (`backend/`, `frontend/src/lib/components/`).
+  Читать можно через `git show legacy-go-version:<путь>`.
 
 ## Визуал
 
-- Дизайн не менять: стили и разметка берутся из `frontend/` как в `main` (Tailwind 4, повторяющиеся наборы классов вынесены в `style.css`).
-- Не выдумывать новые оттенки без причины. Сверяйся с скриншотами и с компонентами `main`.
-- Пользователь сравнивает с оригиналом по скриншотам (`rewrite_screenshots/original/`). Сверяй с ними.
+- Дизайн не менять: стили и разметка берутся из ветки `legacy-go-version` (Tailwind 4, повторяющиеся наборы классов вынесены в `style.css`).
+- Не выдумывать новые оттенки без причины. Сверяйся с компонентами `legacy-go-version`.
+- Скриншоты оригинала в репозиторий не добавлены. Если пользователь приложит их — сверяйся с ними.
 - Не ставь внутри карточек и форм лишних линий и разделителей. Используй отступы.
 
 ## Работа с пользователем
@@ -95,8 +106,7 @@ rewrite_screenshots/  скриншоты пользователя: rewrite/ (н�
 - Не спрашивай разрешения на то, что явно входит в задачу. Спрашивай, когда нужен запуск GUI,
   коммит, решение о дизайне или потенциально разрушительное действие.
 - Пользователь не любит фоновые процессы и длинные таймауты. Если он прервал команду — остановись и спроси.
-- Про результат пиши честно: что проверено (`cargo check`, живой запуск), что нет.
-
+- Про результат пиши честно: что проверено (`pnpm check`, живой запуск), что нет.
 
 ## Пустые места, которые стоит знать
 

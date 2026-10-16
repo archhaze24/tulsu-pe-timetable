@@ -5,9 +5,17 @@
 
 Стек: Tauri 2 (Rust) + Svelte 5 + TypeScript + Tailwind 4.
 
-## Запуск
+Предыдущая версия на Go + Wails сохранена в ветке `legacy-go-version`.
 
-Из корня проекта:
+## Требования
+
+- [Node.js](https://nodejs.org/) и [pnpm](https://pnpm.io/)
+- [Rust](https://www.rust-lang.org/tools/install) (через rustup)
+- Системные зависимости Tauri для вашей ОС: см. [документацию Tauri](https://tauri.app/start/prerequisites/)
+
+## Установка и запуск
+
+Все команды выполняются из корня проекта. Одна установка ставит зависимости и корня, и `frontend/`:
 
 ```sh
 pnpm install
@@ -15,13 +23,17 @@ pnpm dev      # окно приложения с горячей перезагр
 pnpm build    # сборка приложения
 ```
 
-Проверки без окна:
+## Проверки
 
 ```sh
-cd src-tauri && cargo check
-cd frontend && pnpm run check && pnpm run build
+pnpm check    # cargo check + svelte-check + сборка фронтенда, без окна
 ```
 
-Типы фронтенда для моделей и запросов генерируются из Rust (`ts-rs`) командой `cd frontend && pnpm gen:types`.
+Типы фронтенда для моделей и запросов генерируются из Rust (`ts-rs`):
+
+```sh
+pnpm gen:types
+```
+
 Файлы лежат в `frontend/src/lib/generated`: их не редактируют руками. Запускайте команду после изменения
 структур в `src-tauri`.
