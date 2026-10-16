@@ -4,6 +4,6 @@
 TS_RS_EXPORT_DIR = { value = "../frontend/src/lib", relative = true }
 TS_RS_LARGE_INT = "number"
 
-# Windows 7: статический CRT, чтобы exe не требовал VC++ Runtime и обновлений UCRT, которых на старых ПК может не быть.
-[target.x86_64-win7-windows-msvc]
+# Windows (MSVC): статический CRT. Tauri линкует VC-рантайм статично, а cc без crt-static собирает C-код (sqlite) с динамическим CRT.
+[target.'cfg(all(windows, target_env = "msvc"))']
 rustflags = ["-C", "target-feature=+crt-static"]
