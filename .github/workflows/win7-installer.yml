@@ -1,0 +1,59 @@
+name: Windows 7 installer
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Версия Rust, на которой std для Windows 7 собрана и проверена (nightly 2026-10-15 её не собирает).
+  WIN7_TOOLCHAIN: 1.99.1
+  # Архив WebView2 Fixed Version 109 лежит в релизе репозитория: в git его не храним (файл больше лимита GitHub 100 МБ).
+  WEBVIEW2_RELEASE_TAG: webview2-109
+  WEBVIEW2_ASSET: WebView2-109.zip
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.WIN7_TOOLCHAIN }}
+          components: rust-src
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.6.0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Скачать WebView2 Fixed Version 109
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download $env:WEBVIEW2_RELEASE_TAG --repo ${{ github.repository }} --pattern $env:WEBVIEW2_ASSET --dir $env:RUNNER_TEMP
+          Expand-Archive -Path "$env:RUNNER_TEMP/$env:WEBVIEW2_ASSET" -DestinationPath src-tauri/WebView2
+          if (-not (Test-Path src-tauri/WebView2/msedgewebview2.exe)) { throw 'В архиве нет msedgewebview2.exe в корне' }
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build:win7
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: tulsu-pe-timetable-win7
+          path: src-tauri/target/x86_64-win7-windows-msvc/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 7

@@ -54,6 +54,8 @@ src-tauri/
 - `pnpm dev` — запуск окна. **Только по явной просьбе пользователя.** Запускай в открытом диалоге, не в фоне,
   без `timeout`, и дай пользователю остановить процесс. Если нужен запуск, спроси сначала.
 - `pnpm build` — сборка приложения (Tauri bundle).
+- `pnpm build:win7` — установщик для Windows 7 (WebView2 109 в `src-tauri/WebView2`, см. README). Только по явной просьбе: нужны stable с `rust-src` и WebView2 109 в `src-tauri/WebView2`.
+- CI: `.github/workflows/win7-installer.yml` (ручной запуск на `windows-latest`; WebView2 берётся из релиза `webview2-109`, в git его не храним).
 
 Точечные проверки, если нужно: `cargo check --manifest-path src-tauri/Cargo.toml`, `pnpm --filter frontend run check`.
 
@@ -69,6 +71,7 @@ src-tauri/
 - **Бизнес-логика — в бэкенде** (`src-tauri/src/schedule.rs`, `storage/`). Фронтенд отображает модель и вызывает команды.
 - **Ошибки не `panic`.** Бэкенд возвращает `AppResult`/`ApiResponse` с кодом или текстом ошибки. Коды бизнес-ситуаций фронтенд переводит через i18n (`frontend/src/lib/locales/ru.json`).
 - **Кроссплатформенность.** Код должен работать на macOS, Windows и Linux. Пути — через `std::path` и `dirs`.
+- **Windows 7.** Там WebView2 109 (≈ Chromium 109): новый CSS и JS проверять на эту версию. Цвета Tailwind 4 понижаются только в `build:win7` (`frontend/vite.config.ts`).
 - **Минимум зависимостей.** Новые крейты и npm-пакеты — только при явной необходимости.
 - **Комментарии** — только там, где нужна причина решения (бизнес-правило, неочевидный выбор). Не пересказывать код.
 

@@ -3,3 +3,7 @@
 [env]
 TS_RS_EXPORT_DIR = { value = "../frontend/src/lib", relative = true }
 TS_RS_LARGE_INT = "number"
+
+# Windows 7: статический CRT, чтобы exe не требовал VC++ Runtime и обновлений UCRT, которых на старых ПК может не быть.
+[target.x86_64-win7-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
