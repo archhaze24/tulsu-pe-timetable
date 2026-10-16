@@ -37,6 +37,7 @@ src-tauri/
   src/export.rs        экспорт XLSX
   src/logger.rs        журнал рядом с базой
   src/error.rs         AppError (текст из locales/errors.json)
+  src/win7_compat.rs   хуки delay-load для Windows 7 (только win7-сборка, см. docs/windows7.md)
   tauri.conf.json      окно, dev/build-команды фронтенда
 ```
 
@@ -57,6 +58,7 @@ src-tauri/
 - `pnpm build:win7` — установщик для Windows 7 (WebView2 109 в `src-tauri/WebView2`, см. README). Только по явной просьбе: нужны stable с `rust-src` и WebView2 109 в `src-tauri/WebView2`.
 - CI: `.github/workflows/win7-installer.yml` (ручной запуск на `windows-latest`; WebView2 берётся из релиза `webview2-109`, в git его не храним).
 - CI: `.github/workflows/windows.yml` — `pnpm check` на PR и push в `main`; установщики (NSIS + MSI) на теге `v*` публикуются в Releases. Версия тега должна совпадать с `version` в `src-tauri/tauri.conf.json`.
+- Windows 7: статус, грабли и план — `docs/windows7.md`. Перед любыми изменениями Win7-сборки читать целиком, включая разделы «Текущий статус» и «Открытые решения».
 
 Точечные проверки, если нужно: `cargo check --manifest-path src-tauri/Cargo.toml`, `pnpm --filter frontend run check`.
 
