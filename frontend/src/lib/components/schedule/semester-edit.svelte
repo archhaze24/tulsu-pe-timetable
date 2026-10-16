@@ -1,67 +1,64 @@
 <script lang="ts">
   import { t } from 'svelte-i18n'
   import { navigate } from '../../stores/router'
-  import { semestersStore, addSemester, updateSemester, type Semester } from '../../stores/semesters'
-  import { logUiEvent } from '../../stores/logger'
+  import { semestersStore, addSemester, updateSemester } from '../../stores/semesters'
+  
+  let { id = 0 }: { id?: number } = $props()
 
-  export let id: number | undefined
+  const current = $derived($semestersStore.find(s => s.id === id))
 
-  let name = ''
-  let startDate = ''
-  let endDate = ''
-  let lastInitId: number | undefined = undefined
+  let name = $state('')
+  let startDate = $state('')
+  let endDate = $state('')
+  let lastInitId: number | undefined
 
-  $: canSave = Boolean(name.trim()) && Boolean(startDate) && Boolean(endDate) && (endDate >= startDate)
+  $effect(() => {
+    const sem = current
+    if (sem && lastInitId !== sem.id) {
+      name = sem.name
+      startDate = sem.startDate
+      endDate = sem.endDate
+      lastInitId = sem.id
+    }
+  })
 
-  $: current = $semestersStore.find(s => s.id === id)
-  $: if (current && lastInitId !== current.id) {
-    name = current.name
-    startDate = (current.startDate || '').split('T')[0].split(' ')[0]
-    endDate = (current.endDate || '').split('T')[0].split(' ')[0]
-    lastInitId = current.id
-  }
+  const canSave = $derived(Boolean(name.trim()) && Boolean(startDate) && Boolean(endDate) && endDate >= startDate)
 
-  const back = () => { logUiEvent('click:back', { screen: 'semester_edit' }); navigate('semesters') }
+  const back = () => { navigate('semesters') }
 
   async function save() {
     if (current) {
-      const updated = await updateSemester(current.id, { name, startDate, endDate })
-      logUiEvent('click:save_semester', { id: current.id, name, startDate, endDate, ok: updated })
-      if (updated) navigate('semesters')
+      const ok = await updateSemester(current.id, { name, startDate, endDate })
+      if (ok) navigate('semesters')
     } else {
       const created = await addSemester({ name, startDate, endDate })
-      logUiEvent('click:create_semester_submit', { name, startDate, endDate, createdId: created?.id })
       if (created) navigate('schedule', { id: created.id })
     }
   }
 </script>
 
 <div class="max-w-md w-full px-6 py-10">
-  <button class="mb-6 text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-white text-sm" on:click={back}>
-    ← {$t('back')}
-  </button>
+  <button class="back-link mb-6" onclick={back}>← {$t('back')}</button>
 
-  <h2 class="text-2xl font-semibold mb-4">{$t(current ? 'edit_semester' : 'new_semester')}</h2>
+  <h2 class="mb-4 text-2xl font-semibold">{$t(current ? 'edit_semester' : 'new_semester')}</h2>
 
   <div class="grid gap-4">
     <div>
-      <label class="text-sm text-slate-600 dark:text-slate-300" for="sem-name">{$t('semester_name')}</label>
-      <input id="sem-name" class="mt-1 w-full rounded-lg bg-white dark:bg-slate-900/60 focus:bg-white dark:focus:bg-slate-900 px-4 py-2 ring-1 ring-slate-200 dark:ring-white/10 outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400" bind:value={name} placeholder={$t('semester_name_placeholder')} />
+      <label class="field-label" for="sem-name">{$t('semester_name')}</label>
+      <input id="sem-name" class="input mt-1" bind:value={name} placeholder={$t('semester_name_placeholder')} />
     </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label class="text-sm text-slate-600 dark:text-slate-300" for="sem-start">{$t('semester_start')}</label>
-        <input id="sem-start" type="date" class="mt-1 w-full rounded-lg bg-white dark:bg-slate-900/60 focus:bg-white dark:focus:bg-slate-900 px-4 py-2 ring-1 ring-slate-200 dark:ring-white/10 outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400" bind:value={startDate} />
+        <label class="field-label" for="sem-start">{$t('semester_start')}</label>
+        <input id="sem-start" type="date" class="input mt-1" bind:value={startDate} />
       </div>
       <div>
-        <label class="text-sm text-slate-600 dark:text-slate-300" for="sem-end">{$t('semester_end')}</label>
-        <input id="sem-end" type="date" class="mt-1 w-full rounded-lg bg-white dark:bg-slate-900/60 focus:bg-white dark:focus:bg-slate-900 px-4 py-2 ring-1 ring-slate-200 dark:ring-white/10 outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400" bind:value={endDate} />
+        <label class="field-label" for="sem-end">{$t('semester_end')}</label>
+        <input id="sem-end" type="date" class="input mt-1" bind:value={endDate} />
       </div>
     </div>
-    <button class="mt-2 w-full rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 text-base font-semibold shadow-md transition" on:click={save} disabled={!canSave}>
+    <button class="btn-success mt-2 w-full rounded-xl px-4 py-3 text-base font-semibold shadow-md" onclick={save} disabled={!canSave}>
       {$t('save')}
     </button>
   </div>
 </div>
-
-

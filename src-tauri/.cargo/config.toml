@@ -1,0 +1,5 @@
+# Переменные для ts-rs: типы экспортируются в frontend/src/lib/generated, i64 → number (JSON отдаёт числа).
+# Генерация: `cargo test export_bindings` из src-tauri.
+[env]
+TS_RS_EXPORT_DIR = { value = "../frontend/src/lib", relative = true }
+TS_RS_LARGE_INT = "number"

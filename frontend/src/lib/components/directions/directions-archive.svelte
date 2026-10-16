@@ -3,48 +3,35 @@
   import { onMount } from 'svelte'
   import { navigate } from '../../stores/router'
   import { fetchArchivedDirections, restoreDirection, type Direction } from '../../stores/directions'
-  import { logUiEvent } from '../../stores/logger'
+  
+  let archived = $state<Direction[]>([])
 
-  const back = () => { logUiEvent('click:back', { screen: 'directions_archive' }); navigate('directions') }
-  let archived: Direction[] = []
+  const back = () => { navigate('directions') }
 
-  async function load(): Promise<void> {
-    archived = await fetchArchivedDirections()
-  }
-
-  async function onRestore(id: number): Promise<void> {
+  async function onRestore(id: number) {
     const ok = await restoreDirection(id)
-    logUiEvent('click:restore_direction', { id, ok })
     if (ok) archived = archived.filter(d => d.id !== id)
   }
 
-  onMount(load)
+  onMount(async () => { archived = await fetchArchivedDirections() })
 </script>
 
 <div class="max-w-md w-full px-6 py-10">
-  <button class="mb-6 text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-white text-sm" on:click={back}>
-    ← {$t('back')}
-  </button>
+  <button class="back-link mb-6" onclick={back}>← {$t('back')}</button>
 
-  <div class="flex items-center justify-between gap-3 mb-4">
-    <h2 class="text-2xl font-semibold">{$t('directions')} — {$t('archive')}</h2>
-  </div>
+  <h2 class="mb-4 text-2xl font-semibold">{$t('directions')} — {$t('archive')}</h2>
 
   <div class="mt-4 grid grid-cols-1 gap-3">
-    {#each archived as dir}
-      <div class="w-full rounded-lg bg-slate-100 px-2 py-2 ring-1 ring-black/5 dark:bg-slate-800/60 dark:ring-white/10 shadow-sm flex items-center gap-2">
+    {#each archived as dir (dir.id)}
+      <div class="card flex w-full items-center gap-2 px-2 py-2 shadow-sm">
         <div class="flex-1 px-3 py-2">
           <div class="font-medium">{dir.name}</div>
         </div>
-        <button class="rounded-md bg-emerald-600/90 hover:bg-emerald-600 active:bg-emerald-700 px-3 py-2 text-xs font-medium transition text-white" on:click={() => onRestore(dir.id)}>
-          {$t('restore')}
-        </button>
+        <button class="btn-restore px-3 py-2 text-xs font-medium" onclick={() => onRestore(dir.id)}>{$t('restore')}</button>
       </div>
     {/each}
     {#if archived.length === 0}
-      <div class="text-sm text-slate-600 dark:text-slate-300">{$t('empty')}</div>
+      <div class="muted text-sm">{$t('empty')}</div>
     {/if}
   </div>
 </div>
-
-
