@@ -36,6 +36,9 @@ importers:
       '@tsconfig/svelte':
         specifier: ^5.0.8
         version: 5.0.8
+      lightningcss:
+        specifier: ^1.33.0
+        version: 1.33.0
       svelte:
         specifier: ^5.57.2
         version: 5.57.2

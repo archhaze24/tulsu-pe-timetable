@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
+    "build:win7": "node scripts/build-win7.mjs",
     "check": "cargo check --manifest-path src-tauri/Cargo.toml && pnpm --filter frontend run check && pnpm --filter frontend run build",
     "gen:types": "pnpm --filter frontend run gen:types",
     "tauri": "tauri"

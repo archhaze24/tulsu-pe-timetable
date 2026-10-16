@@ -4,4 +4,6 @@ frontend/dist
 .DS_Store
 src-tauri/target
 src-tauri/gen/schemas
+src-tauri/WebView2
+WebView2-*.zip
 target
