@@ -8,10 +8,12 @@
   },
   "bundle": {
     "targets": ["nsis"],
+    "resources": {
+      "WebView2": "WebView2"
+    },
     "windows": {
       "webviewInstallMode": {
-        "type": "fixedRuntime",
-        "path": "./WebView2/"
+        "type": "skip"
       }
     }
   }

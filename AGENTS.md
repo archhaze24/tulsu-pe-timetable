@@ -37,7 +37,7 @@ src-tauri/
   src/export.rs        экспорт XLSX
   src/logger.rs        журнал рядом с базой
   src/error.rs         AppError (текст из locales/errors.json)
-  src/win7_compat.rs   хуки delay-load для Windows 7 (только win7-сборка, см. docs/windows7.md)
+  src/win7_compat.rs   хуки delay-load и выбор WebView2 Runtime для Windows 7 (только win7-сборка, см. docs/windows7.md)
   tauri.conf.json      окно, dev/build-команды фронтенда
 ```
 
