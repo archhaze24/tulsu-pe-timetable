@@ -7,9 +7,3 @@ export const theme = writable<ThemeMode>('light')
 export function setTheme(next: ThemeMode) {
   theme.set(next)
 }
-
-export function toggleTheme() {
-  theme.update((cur) => (cur === 'dark' ? 'light' : 'dark'))
-}
-
-

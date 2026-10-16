@@ -1,4 +1,7 @@
-build/bin
 node_modules
 frontend/dist
 .idea
+.DS_Store
+src-tauri/target
+src-tauri/gen/schemas
+target

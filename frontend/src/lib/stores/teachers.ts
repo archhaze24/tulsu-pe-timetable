@@ -1,5 +1,6 @@
-import { writable } from 'svelte/store'
-import * as App from '../../../wailsjs/go/app_services/App.js'
+import { writable, get } from 'svelte/store'
+import * as App from '../api'
+import { request } from './request'
 
 export interface Teacher {
   id: number
@@ -13,128 +14,66 @@ export interface Teacher {
 
 export const teachersStore = writable<Teacher[]>([])
 
-function mapTeacherFromBackend(t: any): Teacher {
-  return {
-    id: Number(t.id),
-    firstName: String(t.first_name ?? ''),
-    lastName: String(t.last_name ?? ''),
-    middleName: t.middle_name ? String(t.middle_name) : undefined,
-    directionId: Number(t.direction_id ?? 0),
-    rate: Number(t.rate ?? 0),
-    directionName: t.direction_name ? String(t.direction_name) : undefined
-  }
-}
+const mapTeacher = (t: App.Teacher): Teacher => ({
+  id: Number(t.id),
+  firstName: String(t.first_name ?? ''),
+  lastName: String(t.last_name ?? ''),
+  middleName: t.middle_name ? String(t.middle_name) : undefined,
+  directionId: Number(t.direction_id ?? 0),
+  rate: Number(t.rate ?? 0),
+  directionName: t.direction_name ? String(t.direction_name) : undefined
+})
 
 export async function refreshTeachers(): Promise<void> {
-  try {
-    const resp = await App.GetTeachers()
-    if (resp.error) {
-      console.error('GetTeachers error:', resp.error)
-      return
-    }
-    const mapped = (resp.data ?? []).map(mapTeacherFromBackend)
-    teachersStore.set(mapped)
-  } catch (e) {
-    console.error('GetTeachers failed:', e)
-  }
+  const data = await request('GetTeachers', () => App.GetTeachers(), true)
+  if (data) teachersStore.set(data.map(mapTeacher))
 }
 
 export async function fetchArchivedTeachers(): Promise<Teacher[]> {
-  try {
-    const resp = await App.GetTeachersByArchived(true)
-    if (resp.error) {
-      console.error('GetTeachersByArchived error:', resp.error)
-      return []
-    }
-    return (resp.data ?? []).map(mapTeacherFromBackend)
-  } catch (e) {
-    console.error('GetTeachersByArchived failed:', e)
-    return []
-  }
+  const data = await request('GetTeachersByArchived', () => App.GetTeachersByArchived(true), true)
+  return (data ?? []).map(mapTeacher)
 }
 
 export async function restoreTeacher(id: number): Promise<boolean> {
-  try {
-    const resp = await App.RestoreTeacher(id)
-    if (resp.error) {
-      console.error('RestoreTeacher error:', resp.error)
-      return false
-    }
-    await refreshTeachers()
-    return Boolean(resp.data)
-  } catch (e) {
-    console.error('RestoreTeacher failed:', e)
-    return false
-  }
+  const ok = await request('RestoreTeacher', () => App.RestoreTeacher(id), true)
+  if (ok === undefined) return false
+  await refreshTeachers()
+  return Boolean(ok)
 }
 
 export async function addTeacher(data: Omit<Teacher, 'id'>): Promise<void> {
-  try {
-    const resp = await App.CreateTeacher({
-      first_name: data.firstName,
-      last_name: data.lastName,
-      middle_name: data.middleName ?? '',
-      direction_id: data.directionId,
-      rate: data.rate
-    })
-    if (resp.error) {
-      console.error('CreateTeacher error:', resp.error)
-      return
-    }
-    await refreshTeachers()
-  } catch (e) {
-    console.error('CreateTeacher failed:', e)
-  }
+  const ok = await request('CreateTeacher', () => App.CreateTeacher({
+    first_name: data.firstName,
+    last_name: data.lastName,
+    middle_name: data.middleName ?? '',
+    direction_id: data.directionId,
+    rate: data.rate
+  }), true)
+  if (ok !== undefined) await refreshTeachers()
 }
 
 export async function updateTeacher(id: number, changes: Partial<Omit<Teacher, 'id'>>): Promise<void> {
-  try {
-    let current: Teacher | undefined
-    teachersStore.update(list => {
-      current = list.find(t => t.id === id)
-      return list
-    })
-    if (!current) return
-    const payload = {
-      id,
-      first_name: changes.firstName ?? current.firstName,
-      last_name: changes.lastName ?? current.lastName,
-      middle_name: (changes.middleName ?? current.middleName ?? ''),
-      direction_id: changes.directionId ?? current.directionId,
-      rate: changes.rate ?? current.rate
-    }
-    const resp = await App.UpdateTeacher(payload)
-    if (resp.error) {
-      console.error('UpdateTeacher error:', resp.error)
-      return
-    }
-    await refreshTeachers()
-  } catch (e) {
-    console.error('UpdateTeacher failed:', e)
-  }
+  const current = get(teachersStore).find(t => t.id === id)
+  if (!current) return
+  const ok = await request('UpdateTeacher', () => App.UpdateTeacher({
+    id,
+    first_name: changes.firstName ?? current.firstName,
+    last_name: changes.lastName ?? current.lastName,
+    middle_name: changes.middleName ?? current.middleName ?? '',
+    direction_id: changes.directionId ?? current.directionId,
+    rate: changes.rate ?? current.rate
+  }), true)
+  if (ok !== undefined) await refreshTeachers()
 }
 
 export async function deleteTeacher(id: number): Promise<void> {
-  try {
-    const resp = await App.DeleteTeacher(id)
-    if (resp.error) {
-      console.error('DeleteTeacher error:', resp.error)
-      return
-    }
-    await refreshTeachers()
-  } catch (e) {
-    console.error('DeleteTeacher failed:', e)
-  }
+  if (await request('DeleteTeacher', () => App.DeleteTeacher(id), true)) await refreshTeachers()
 }
 
 export function formatTeacherName(t: Teacher): string {
   const initials = [t.firstName, t.middleName]
     .filter(Boolean)
-    .map(n => (n ? `${(n as string)[0]}.` : ''))
+    .map(n => `${n![0]}.`)
     .join(' ')
-    .trim()
   return initials ? `${t.lastName} ${initials}` : t.lastName
 }
-
-void refreshTeachers()
-

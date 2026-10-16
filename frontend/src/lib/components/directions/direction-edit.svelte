@@ -1,137 +1,105 @@
 <script lang="ts">
   import { t } from 'svelte-i18n'
+  import { derived } from 'svelte/store'
   import { directionsStore, updateDirection, createDirection } from '../../stores/directions'
   import { teachersStore, type Teacher, formatTeacherName, updateTeacher } from '../../stores/teachers'
   import { navigate, route } from '../../stores/router'
-  import { derived } from 'svelte/store'
-  import { logUiEvent } from '../../stores/logger'
-
-  const back = () => { logUiEvent('click:back', { screen: 'direction_edit' }); navigate('directions') }
+  
   const dirId = derived(route, ($route) => Number($route.params?.id ?? 0))
   const direction = derived([directionsStore, dirId], ([$dirs, $id]) => $dirs.find(d => d.id === $id))
 
-  let nameDraft = ''
+  let nameDraft = $state('')
+  let search = $state('')
+  // Режим создания: выбранные преподаватели назначатся новому направлению после его создания.
+  let selectedCreateIds = $state(new Set<number>())
   let lastInitId = 0
-  $: canSave = Boolean(nameDraft.trim())
-  let search = ''
 
-  $: {
-    const currentId = $direction ? $direction.id : 0
-    if ($direction && lastInitId !== currentId) {
-      nameDraft = $direction.name
-      lastInitId = currentId
+  const canSave = $derived(Boolean(nameDraft.trim()))
+
+  $effect(() => {
+    const dir = $direction
+    if (dir && lastInitId !== dir.id) {
+      nameDraft = dir.name
+      lastInitId = dir.id
     }
-    if (!$direction && lastInitId !== 0) {
-      lastInitId = 0
-    }
-  }
+    if (!dir) lastInitId = 0
+  })
+
+  const filteredTeachers = $derived.by(() => {
+    const q = search.trim().toLowerCase()
+    return q ? $teachersStore.filter(t => formatTeacherName(t).toLowerCase().includes(q)) : $teachersStore
+  })
+
+  const back = () => { navigate('directions') }
 
   const save = async () => {
-    const n = nameDraft.trim()
-    if (n.length === 0) return
+    const name = nameDraft.trim()
+    if (!name) return
     if ($direction) {
-      logUiEvent('click:save_direction', { id: $direction.id, name: n })
-      await updateDirection($direction.id, { name: n })
+      await updateDirection($direction.id, name)
     } else {
-      logUiEvent('click:create_direction_submit', { name: n })
-      const created = await createDirection(n)
+      const created = await createDirection(name)
       if (created) {
-        // Назначаем выбранных преподавателей новому направлению
-        const ids = Array.from(selectedCreateIds)
-        for (const tid of ids) {
-          logUiEvent('click:assign_teacher_direction_on_create', { teacherId: tid, directionId: created.id })
-          await updateTeacher(tid, { directionId: created.id })
+        for (const teacherId of selectedCreateIds) {
+          await updateTeacher(teacherId, { directionId: created.id })
         }
       }
     }
     back()
   }
 
-  let filteredTeachers: Teacher[] = []
-  $: {
-    const q = search.trim().toLowerCase()
-    const all = $teachersStore
-    filteredTeachers = q
-      ? all.filter(t => formatTeacherName(t).toLowerCase().includes(q))
-      : all
-  }
-
+  // Преподаватель из чужого направления здесь недоступен: сначала его нужно снять в том направлении.
   const canToggle = (teacher: Teacher) => {
     if (!$direction) return false
     return teacher.directionId === 0 || teacher.directionId === $direction.id
   }
 
   const toggle = (teacher: Teacher) => {
-    if (!$direction) return
-    if (teacher.directionId === $direction.id) {
-      logUiEvent('click:unassign_teacher_direction', { teacherId: teacher.id, directionId: $direction.id })
-      updateTeacher(teacher.id, { directionId: 0 })
-    } else {
-      if (teacher.directionId !== 0 && teacher.directionId !== $direction.id) return
-      logUiEvent('click:assign_teacher_direction', { teacherId: teacher.id, directionId: $direction.id })
-      updateTeacher(teacher.id, { directionId: $direction.id })
-    }
+    if (!$direction || !canToggle(teacher)) return
+    const assigned = teacher.directionId === $direction.id
+    updateTeacher(teacher.id, { directionId: assigned ? 0 : $direction.id })
   }
 
-  // Режим создания: выбираем преподавателей, которых назначим после создания направления
-  let selectedCreateIds: Set<number> = new Set()
   const toggleSelectCreate = (teacher: Teacher) => {
     if (teacher.directionId !== 0) return
-    if (selectedCreateIds.has(teacher.id)) {
-      selectedCreateIds.delete(teacher.id)
-      selectedCreateIds = new Set(selectedCreateIds)
-    } else {
-      selectedCreateIds.add(teacher.id)
-      selectedCreateIds = new Set(selectedCreateIds)
-    }
+    const next = new Set(selectedCreateIds)
+    if (next.has(teacher.id)) next.delete(teacher.id)
+    else next.add(teacher.id)
+    selectedCreateIds = next
   }
+
+  const rowClass = 'flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent dark:hover:bg-slate-800/60'
 </script>
 
 <div class="max-w-md w-full px-6 py-10">
-  <button class="mb-6 text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-white text-sm" on:click={back}>
-    ← {$t('back')}
-  </button>
+  <button class="back-link mb-6" onclick={back}>← {$t('back')}</button>
 
-  {#if $direction}
-    <h2 class="text-2xl font-semibold mb-4">{$t('edit_direction')}</h2>
-  {:else}
-    <h2 class="text-2xl font-semibold mb-4">{$t('create_direction')}</h2>
-  {/if}
+  <h2 class="mb-4 text-2xl font-semibold">{$t($direction ? 'edit_direction' : 'create_direction')}</h2>
 
-  <label class="block text-sm mb-2 text-slate-600 dark:text-slate-300" for="dir-name">{$t('direction_name')}</label>
-  <input id="dir-name" class="w-full rounded-lg bg-white dark:bg-slate-900/60 focus:bg-white dark:focus:bg-slate-900 px-4 py-2 ring-1 ring-slate-200 dark:ring-white/10 outline-none" bind:value={nameDraft} placeholder={$t('direction_name_placeholder')} />
-
-  
+  <label class="field-label mb-2 block" for="dir-name">{$t('direction_name')}</label>
+  <input id="dir-name" class="input" bind:value={nameDraft} placeholder={$t('direction_name_placeholder')} />
 
   <div class="mt-6">
-    <div class="mb-2 text-sm text-slate-600 dark:text-slate-300">{$t('assign_teachers')}</div>
-    <input class="w-full rounded-lg bg-white dark:bg-slate-900/60 focus:bg-white dark:focus:bg-slate-900 px-4 py-2 ring-1 ring-slate-200 dark:ring-white/10 outline-none" bind:value={search} placeholder={$t('search_placeholder')} />
-    <div class="mt-3 max-h-60 overflow-auto rounded-md ring-1 ring-slate-200 dark:ring-white/10 divide-y divide-slate-100 dark:divide-white/5">
-      {#each filteredTeachers as teacher}
+    <div class="muted mb-2 text-sm">{$t('assign_teachers')}</div>
+    <input class="input" bind:value={search} placeholder={$t('search_placeholder')} />
+    <div class="mt-3 max-h-60 divide-y divide-slate-100 overflow-auto rounded-md ring-1 ring-slate-200 dark:divide-white/5 dark:ring-white/10">
+      {#each filteredTeachers as teacher (teacher.id)}
         {#if $direction}
-          <button
-            class="w-full flex items-center justify-between px-3 py-2 text-left disabled:opacity-60 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800/60 disabled:hover:bg-transparent"
-            on:click={() => canToggle(teacher) && toggle(teacher)}
-            disabled={!canToggle(teacher)}
-          >
+          <button class={rowClass} onclick={() => toggle(teacher)} disabled={!canToggle(teacher)}>
             <span>{formatTeacherName(teacher)}</span>
             {#if teacher.directionId === $direction.id}
-              <span class="text-emerald-600 dark:text-emerald-400 text-xs">{$t('assigned')}</span>
+              <span class="text-xs text-emerald-600 dark:text-emerald-400">{$t('assigned')}</span>
             {:else if teacher.directionId !== 0}
-              <span class="text-amber-600 dark:text-amber-400 text-xs">{$t('assigned_to_direction')}: {teacher.directionName}</span>
+              <span class="text-xs text-amber-600 dark:text-amber-400">{$t('assigned_to_direction')}: {teacher.directionName}</span>
             {/if}
           </button>
         {:else}
-          <button
-            class="w-full flex items-center justify-between px-3 py-2 text-left disabled:opacity-60 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800/60 disabled:hover:bg-transparent"
-            on:click={() => toggleSelectCreate(teacher)}
-            disabled={teacher.directionId !== 0}
-          >
+          <button class={rowClass} onclick={() => toggleSelectCreate(teacher)} disabled={teacher.directionId !== 0}>
             <span>{formatTeacherName(teacher)}</span>
             {#if teacher.directionId !== 0}
-              <span class="text-amber-600 dark:text-amber-400 text-xs">{$t('assigned_to_direction')}: {teacher.directionName}</span>
+              <span class="text-xs text-amber-600 dark:text-amber-400">{$t('assigned_to_direction')}: {teacher.directionName}</span>
             {:else if selectedCreateIds.has(teacher.id)}
-              <span class="text-emerald-600 dark:text-emerald-400 text-xs">{$t('will_assign')}</span>
+              <span class="text-xs text-emerald-600 dark:text-emerald-400">{$t('will_assign')}</span>
             {/if}
           </button>
         {/if}
@@ -140,13 +108,9 @@
   </div>
 
   <div class="mt-6 flex gap-3">
-    <button class="rounded-lg bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 text-sm font-medium shadow-sm transition" on:click={save} disabled={!canSave}>
+    <button class="btn-success px-4 py-2 text-sm font-medium shadow-sm" onclick={save} disabled={!canSave}>
       {$t($direction ? 'save' : 'create')}
     </button>
-    <button class="rounded-lg bg-slate-100 hover:bg-slate-200 active:bg-slate-300 px-4 py-2 text-sm font-medium shadow-sm ring-1 ring-black/5 transition dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:active:bg-slate-700 dark:ring-white/10" on:click={back}>
-      {$t('cancel')}
-    </button>
+    <button class="btn-neutral px-4 py-2 text-sm font-medium shadow-sm" onclick={back}>{$t('cancel')}</button>
   </div>
 </div>
-
-

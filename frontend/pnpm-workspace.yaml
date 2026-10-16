@@ -1,4 +1,4 @@
-ignoredBuiltDependencies:
-  - es5-ext
-onlyBuiltDependencies:
-  - esbuild
+allowBuilds:
+  esbuild: true
+  svelte-preprocess: true
+  es5-ext: false

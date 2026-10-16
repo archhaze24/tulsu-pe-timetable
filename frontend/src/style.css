@@ -1,23 +1,157 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Тема приложения задаётся классом .dark на <html>, а не prefers-color-scheme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: Nunito, ui-sans-serif, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+}
 
 @font-face {
-    font-family: "Nunito";
-    font-style: normal;
-    font-weight: 400;
-    src: local("") , url("assets/fonts/nunito-v16-latin-regular.woff2") format("woff2");
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 400;
+  src: local(""), url("assets/fonts/nunito-v16-latin-regular.woff2") format("woff2");
 }
 
 html, body, #app {
-    height: 100%;
+  height: 100%;
 }
 
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
+  -webkit-appearance: none;
+  margin: 0;
 }
 input[type="number"] {
-    -moz-appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+/*
+ * Повторяющиеся наборы утилит. Размеры и отступы остаются в разметке, здесь только цвета,
+ * ободки и состояния, которые одинаковы во всём приложении.
+ */
+@layer components {
+  /* Навигация и текст */
+  .back-link {
+    @apply text-sm text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-white;
+  }
+  .field-label {
+    @apply text-sm text-slate-600 dark:text-slate-300;
+  }
+  .muted {
+    @apply text-slate-600 dark:text-slate-300;
+  }
+
+  /* Поля ввода */
+  .input {
+    @apply w-full rounded-lg bg-white px-4 py-2 text-slate-900 ring-1 ring-slate-200 outline-none dark:bg-slate-900/60 dark:text-slate-50 dark:ring-white/10;
+    @apply focus:bg-white dark:focus:bg-slate-900;
+  }
+
+  /* Кнопки */
+  .btn-neutral {
+    @apply rounded-lg bg-slate-100 ring-1 ring-black/5 transition hover:bg-slate-200 active:bg-slate-300;
+    @apply dark:bg-slate-800/60 dark:ring-white/10 dark:hover:bg-slate-800 dark:active:bg-slate-700;
+  }
+  .btn-success {
+    @apply rounded-lg bg-emerald-500 text-white transition hover:bg-emerald-400 active:bg-emerald-600;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-restore {
+    @apply rounded-md bg-emerald-600/90 text-white transition hover:bg-emerald-600 active:bg-emerald-700;
+  }
+  .btn-danger {
+    @apply rounded-md bg-rose-600/90 text-white transition hover:bg-rose-600 active:bg-rose-700;
+  }
+
+  /* Карточки списков и модальные окна */
+  .card {
+    @apply rounded-lg bg-slate-100 ring-1 ring-black/5 dark:bg-slate-800/60 dark:ring-white/10;
+  }
+  .panel {
+    @apply rounded-lg bg-white ring-1 ring-black/10 shadow-xl dark:bg-slate-900 dark:ring-white/10;
+  }
+  .modal {
+    @apply rounded-xl bg-white text-slate-900 ring-1 ring-black/5 shadow-xl dark:bg-slate-900 dark:text-slate-50 dark:ring-white/10;
+  }
+  .modal-section {
+    @apply border-slate-200 dark:border-white/10;
+  }
+
+  /* Строки списков и поповеры */
+  .app-root {
+    @apply min-h-screen bg-white font-sans text-slate-900 dark:bg-slate-900 dark:text-slate-50;
+  }
+  .theme-toggle {
+    @apply fixed top-2 right-3 z-50 rounded-md bg-white/70 px-3 py-1.5 text-base ring-1 ring-black/10 backdrop-blur transition hover:opacity-80 disabled:opacity-50 dark:bg-slate-800/60 dark:ring-white/10;
+  }
+  .row-item {
+    @apply flex-1 rounded-md px-3 py-2 text-left transition hover:bg-slate-200 active:bg-slate-300 dark:hover:bg-slate-800 dark:active:bg-slate-700;
+  }
+  .popover {
+    @apply fixed z-30 w-[360px] rounded-lg bg-white p-4 shadow-xl ring-1 ring-black/10 dark:bg-slate-900 dark:ring-white/10;
+  }
+  .notice {
+    @apply rounded-lg bg-rose-600 px-4 py-3 text-left text-sm text-white shadow-lg ring-1 ring-black/10 dark:ring-white/10;
+  }
+  .notice-info {
+    @apply bg-slate-800 dark:bg-slate-700;
+  }
+  .chip {
+    @apply rounded-md px-1.5 py-1 text-xs ring-1 ring-black/10 transition dark:ring-white/10 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700;
+  }
+  .chip-active {
+    @apply bg-indigo-600 text-white hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-600;
+  }
+  .tag {
+    @apply rounded px-2 py-1 text-xs ring-1 ring-black/10 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:ring-white/10;
+  }
+
+  /* Ячейки таблицы расписания */
+  .cell {
+    @apply flex h-8 w-full cursor-pointer select-none items-center justify-center rounded-md text-center text-base font-bold ring-1 ring-black/5 transition dark:ring-white/10;
+  }
+  .cell-on {
+    @apply bg-indigo-100 text-indigo-900 hover:bg-indigo-200 dark:bg-slate-800/60 dark:text-slate-100 dark:hover:bg-slate-800;
+  }
+  .cell-off {
+    @apply bg-slate-100 text-transparent hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800;
+  }
+}
+
+/* Скроллбар таблицы расписания и анимация уведомления. */
+.custom-scroll {
+  scrollbar-color: rgba(99, 102, 241, 0.5) rgba(255, 255, 255, 0.06);
+  scrollbar-width: thin;
+}
+.custom-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.custom-scroll::-webkit-scrollbar-track {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+}
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(165, 180, 252, 0.9), rgba(129, 140, 248, 0.9));
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(199, 210, 254, 1), rgba(165, 180, 252, 1));
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
 }

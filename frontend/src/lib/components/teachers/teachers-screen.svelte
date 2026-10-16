@@ -1,51 +1,52 @@
 <script lang="ts">
   import { t } from 'svelte-i18n'
-  import { teachersStore, type Teacher, deleteTeacher, formatTeacherName } from '../../stores/teachers'
+  import { teachersStore, deleteTeacher, formatTeacherName, type Teacher } from '../../stores/teachers'
   import { directionsStore } from '../../stores/directions'
   import { navigate } from '../../stores/router'
   import ConfirmModal from '../ui/confirm-modal.svelte'
-  import { logUiEvent } from '../../stores/logger'
+  
+  let confirmOpen = $state(false)
+  let toDeleteId = $state<number | null>(null)
 
-  const back = () => { logUiEvent('click:back', { screen: 'teachers' }); navigate('home') }
-  const createNew = () => { logUiEvent('click:create_teacher', {}); navigate('teacher_edit', { id: 0 }) }
-  const open = (teacher: Teacher) => { logUiEvent('click:open_teacher', { id: teacher.id }); navigate('teacher_edit', { id: teacher.id }) }
-  let confirmOpen = false
-  let toDeleteId: number | null = null
-  const askDelete = (id: number) => { toDeleteId = id; confirmOpen = true; logUiEvent('click:ask_delete_teacher', { id }) }
-  const onConfirm = () => { if (toDeleteId != null) deleteTeacher(toDeleteId); logUiEvent('confirm:delete_teacher', { id: toDeleteId }); confirmOpen = false; toDeleteId = null }
-  const onCancel = () => { logUiEvent('cancel:delete_teacher', { id: toDeleteId }); confirmOpen = false; toDeleteId = null }
+  const directionName = (id: number) => $directionsStore.find(d => d.id === id)?.name
+
+  const back = () => { navigate('home') }
+  const createNew = () => { navigate('teacher_edit', { id: 0 }) }
+  const openArchive = () => { navigate('teachers_archive') }
+  const open = (teacher: Teacher) => { navigate('teacher_edit', { id: teacher.id }) }
+  const askDelete = (id: number) => { toDeleteId = id; confirmOpen = true }
+  const onConfirm = () => {
+    if (toDeleteId != null) deleteTeacher(toDeleteId)
+    confirmOpen = false
+    toDeleteId = null
+  }
+  const onCancel = () => { confirmOpen = false; toDeleteId = null }
 </script>
 
 <div class="max-w-md w-full px-6 py-10">
-  <button class="mb-6 text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-white text-sm" on:click={back}>
-    ← {$t('back')}
-  </button>
+  <button class="back-link mb-6" onclick={back}>← {$t('back')}</button>
 
   <div class="flex items-center justify-between gap-3">
     <h2 class="text-2xl font-semibold">{$t('teachers')}</h2>
-    <button class="rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 px-3 py-2 text-xs font-medium shadow-sm ring-1 ring-black/5 transition dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:active:bg-slate-700 dark:ring-white/10" on:click={() => { logUiEvent('click:open_teachers_archive', {}); navigate('teachers_archive') }}>
-      {$t('archive')}
-    </button>
+    <button class="btn-neutral px-3 py-2 text-xs font-medium shadow-sm" onclick={openArchive}>{$t('archive')}</button>
   </div>
+
   <div class="mt-6 grid grid-cols-1 gap-3">
-    {#each $teachersStore as teacher}
-      <div class="w-full rounded-lg bg-slate-100 px-2 py-2 ring-1 ring-black/5 dark:bg-slate-800/60 dark:ring-white/10 shadow-sm flex items-center gap-2">
-        <button class="flex-1 text-left rounded-md hover:bg-slate-200 active:bg-slate-300 dark:hover:bg-slate-800 dark:active:bg-slate-700 px-3 py-2 transition" on:click={() => open(teacher)}>
+    {#each $teachersStore as teacher (teacher.id)}
+      <div class="card flex w-full items-center gap-2 px-2 py-2 shadow-sm">
+        <button class="row-item" onclick={() => open(teacher)}>
           <div class="font-medium">{formatTeacherName(teacher)}</div>
-          {#if $directionsStore.find(d => d.id === teacher.directionId)}
-            <div class="text-xs text-slate-600 dark:text-slate-300">{$directionsStore.find(d => d.id === teacher.directionId).name}</div>
+          {#if directionName(teacher.directionId)}
+            <div class="muted text-xs">{directionName(teacher.directionId)}</div>
           {/if}
         </button>
-        <button class="rounded-md bg-rose-600/90 hover:bg-rose-600 active:bg-rose-700 px-3 py-2 text-xs font-medium transition text-white" on:click={() => askDelete(teacher.id)}>
-          {$t('delete')}
-        </button>
+        <button class="btn-danger px-3 py-2 text-xs font-medium" onclick={() => askDelete(teacher.id)}>{$t('delete')}</button>
       </div>
     {/each}
   </div>
-  <button class="mt-8 w-full rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white px-4 py-4 text-base md:text-lg font-semibold shadow-md transition" on:click={createNew}>
+
+  <button class="btn-success mt-8 w-full rounded-xl px-4 py-4 text-base font-semibold shadow-md md:text-lg" onclick={createNew}>
     {$t('create')}
   </button>
-  <ConfirmModal bind:open={confirmOpen} title={$t('confirm_title')} message={$t('confirm_message_generic')} confirmText={$t('confirm')} cancelText={$t('dismiss')} on:confirm={onConfirm} on:cancel={onCancel} />
+  <ConfirmModal open={confirmOpen} title={$t('confirm_title')} message={$t('confirm_message_generic')} confirmText={$t('confirm')} cancelText={$t('dismiss')} onconfirm={onConfirm} oncancel={onCancel} />
 </div>
-
-
