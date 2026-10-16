@@ -56,6 +56,7 @@ src-tauri/
 - `pnpm build` — сборка приложения (Tauri bundle).
 - `pnpm build:win7` — установщик для Windows 7 (WebView2 109 в `src-tauri/WebView2`, см. README). Только по явной просьбе: нужны stable с `rust-src` и WebView2 109 в `src-tauri/WebView2`.
 - CI: `.github/workflows/win7-installer.yml` (ручной запуск на `windows-latest`; WebView2 берётся из релиза `webview2-109`, в git его не храним).
+- CI: `.github/workflows/windows.yml` — `pnpm check` на PR и push в `main`; установщики (NSIS + MSI) на теге `v*` публикуются в Releases. Версия тега должна совпадать с `version` в `src-tauri/tauri.conf.json`.
 
 Точечные проверки, если нужно: `cargo check --manifest-path src-tauri/Cargo.toml`, `pnpm --filter frontend run check`.
 
