@@ -39,6 +39,7 @@ src-tauri/
   src/error.rs         AppError (текст из locales/errors.json)
   src/win7_compat.rs   хуки delay-load и выбор WebView2 Runtime для Windows 7 (только win7-сборка, см. docs/windows7.md)
   tauri.conf.json      окно, dev/build-команды фронтенда
+  vendor/wry/          wry 0.57.0 с патчем для Windows 7, подключён через [patch.crates-io] (см. vendor/README.md)
 ```
 
 Логика расписания (лимиты, заглушки, факультеты строки) — в бэкенде (`src-tauri/src/schedule.rs`, `storage/`),
@@ -76,6 +77,7 @@ src-tauri/
 - **Кроссплатформенность.** Код должен работать на macOS, Windows и Linux. Пути — через `std::path` и `dirs`.
 - **Windows 7.** Там WebView2 109 (≈ Chromium 109): новый CSS и JS проверять на эту версию. Цвета Tailwind 4 понижаются только в `build:win7` (`frontend/vite.config.ts`).
 - **Минимум зависимостей.** Новые крейты и npm-пакеты — только при явной необходимости.
+- **`src-tauri/vendor/wry`** — локальная копия wry с патчем для Windows 7. Не обновлять wry без переноса патча (`src-tauri/vendor/README.md`, `docs/windows7.md`).
 - **Комментарии** — только там, где нужна причина решения (бизнес-правило, неочевидный выбор). Не пересказывать код.
 
 ## Важные правила предметной области
