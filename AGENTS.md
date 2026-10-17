@@ -67,8 +67,8 @@ src-tauri/
   без `timeout`, и дай пользователю остановить процесс. Если нужен запуск, спроси сначала.
 - `pnpm build` — сборка приложения (Tauri bundle).
 - `pnpm build:win7` — установщик для Windows 7 (WebView2 109 в `src-tauri/WebView2`, см. README). Только по явной просьбе: нужны stable с `rust-src` и WebView2 109 в `src-tauri/WebView2`.
-- CI: `.github/workflows/windows.yml` — `pnpm check` и clippy на PR и push в `main`; установщики (NSIS + MSI) и `SHA256SUMS.txt` на теге `v*` публикуются в Releases. Версия тега должна совпадать с `version` в `src-tauri/tauri.conf.json`.
-- CI: `.github/workflows/win7-installer.yml` — ручной запуск на `windows-latest` (WebView2 берётся из релиза `webview2-109`, в git его не храним).
+- CI: `.github/workflows/windows.yml` — на PR и push в `main`: `pnpm check` (включая тесты фронтенда), clippy и `cargo test --lib`. На теге `v*` (и вручную через `workflow_dispatch`, без публикации): установщики Windows 10/11 (NSIS + MSI) и Windows 7 (`win7-installer.yml` вызывается из `windows.yml`). Публикация в Releases только на теге, с `SHA256SUMS.txt`. Версия тега должна совпадать с `version` в `src-tauri/tauri.conf.json`.
+- CI: `.github/workflows/win7-installer.yml` — ручной запуск или вызов из `windows.yml` на `windows-latest` (WebView2 берётся из релиза `webview2-109`, в git его не храним). Установщик: `tulsu-pe-timetable-win7-<версия>-setup.exe`.
 - Windows 7: статус, грабли и план — `docs/windows7.md`. Перед любыми изменениями Win7-сборки читать целиком.
 
 ## Правила проекта

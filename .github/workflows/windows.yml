@@ -22,7 +22,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Версия тега совпадает с tauri.conf.json
         if: github.ref_type == 'tag'
@@ -42,19 +42,25 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
+      # Тесты фронтенда входят в pnpm check (vitest).
       - run: pnpm check
 
       - name: Clippy без предупреждений
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      # Из src-tauri: там .cargo/config.toml задаёт пути ts-rs, иначе тест создаст папку bindings.
+      - name: Тесты Rust
+        working-directory: src-tauri
+        run: cargo test --lib
 
   build:
     needs: check
@@ -62,7 +68,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
@@ -72,9 +78,9 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -83,7 +89,7 @@ jobs:
 
       - run: pnpm build
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-installers
           path: |
@@ -92,23 +98,29 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # Windows 7: тот же workflow, что вручную (win7-installer.yml), но с артефактом windows7-installer.
+  build-win7:
+    needs: check
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/win7-installer.yml
+
   release:
-    needs: build
+    needs: [build, build-win7]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
-          name: windows-installers
+          pattern: windows*
+          merge-multiple: true
           path: installers
 
-      - name: Положить установщики в одну папку и посчитать SHA256
+      - name: Посчитать SHA256
+        working-directory: installers
         run: |
-          cd installers
-          find . -mindepth 2 -type f -exec mv -t . {} +
-          sha256sum *.exe *.msi > SHA256SUMS.txt
+          sha256sum -- * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Опубликовать релиз

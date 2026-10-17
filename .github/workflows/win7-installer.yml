@@ -2,6 +2,8 @@ name: Windows 7 installer
 
 on:
   workflow_dispatch:
+  # Вызывается из windows.yml при сборке релиза.
+  workflow_call:
 
 permissions:
   contents: read
@@ -18,7 +20,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
@@ -29,9 +31,9 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -57,9 +59,19 @@ jobs:
       - name: Проверить импорты exe
         run: python -B scripts/win7-imports.py src-tauri/target/x86_64-win7-windows-msvc/release/tulsu-pe-timetable.exe
 
-      - uses: actions/upload-artifact@v6
+      # Имя с суффиксом win7: иначе установщик совпадает с Windows 10/11 и затирает его в релизе.
+      - name: Подготовить установщик
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $installers = @(Get-ChildItem src-tauri/target/x86_64-win7-windows-msvc/release/bundle/nsis/*.exe)
+          if ($installers.Count -ne 1) { throw "Ожидался один установщик NSIS, найдено: $($installers.Count)" }
+          New-Item -ItemType Directory -Force -Path dist-win7 | Out-Null
+          Copy-Item $installers[0].FullName "dist-win7/tulsu-pe-timetable-win7-$version-setup.exe"
+
+      - uses: actions/upload-artifact@v7
         with:
-          name: tulsu-pe-timetable-win7
-          path: src-tauri/target/x86_64-win7-windows-msvc/release/bundle/nsis/*.exe
+          name: windows7-installer
+          path: dist-win7/*.exe
           if-no-files-found: error
           retention-days: 7
