@@ -2,194 +2,180 @@
 
 Файл для агентов и разработчиков. Здесь всё про сборку под Windows 7: что сделано, почему, что проверено и что нет. Перед любыми изменениями Win7-сборки читать целиком.
 
-Обновлено: 2026-10-17 (после прогона `38975552911`). Если что-то устарело, сверьте с `git log`, `gh run list` и исправьте этот файл.
+Обновлено: 2026-10-17 (после APPCRASH `test-env` v2: environment на VM создаётся. Падение, вероятно, из-за COM-времени жизни объекта в самом тесте, исправлено в v3, не проверено). Если что-то устарело, сверьте с `git log`, `gh run list` и исправьте этот файл.
 
 ## 1. Цель и контекст
 
 - Нужно: Tauri-версия работает на ПК кафедры физкультуры с Windows 7 SP1. Обычная сборка (Windows 10/11) — `.github/workflows/windows.yml`.
-- Рабочая версия для Win7 сейчас — Go-версия из ветки `legacy-go-version-win7`: go1.20.14, Wails 2.7.1, WebView2 109 руками в `C:\WebView2`. Она работает на Win7-ПК. Пока Tauri на Win7 не заработает, её не удаляем.
-- На Win7 максимум WebView2 109 (Chromium 109). Поэтому фронтенд для win7 собирается с `target: chrome109`.
-- Репозиторий приватный: `archhaze24/tulsu-pe-timetable`. Пользователь работает на macOS (Apple Silicon). Проверки на Win7 делает он на своих ПК.
-- Правило проекта: не коммитить и не пушить без явной просьбы.
+- Рабочая Go-версия для Win7: ветка `legacy-go-version-win7` (Wails 2.7.1, go-webview2 v1.0.10). Работает на Win7-ПК с WebView2 109 в `C:\WebView2`. Пока Tauri на Win7 не заработает, её не удаляем.
+- Файл `tulsu-pe-timetable.exe` в ветке `legacy-go-version-win7` собран Go 1.25.0 и требует `bcryptprimitives.dll` (Windows 8+). Это не Win7-сборка, для тестов не годится.
+- На Win7 максимум WebView2 109 (Chromium 109). Фронтенд для win7 собирается с `target: chrome109`.
+- Тестовая среда: VirtualBox VM `vboxuser`, Windows 7 SP1 (6.1.7601), английская локализация, из обновлений только KB2534111 и KB976902. Рабочий ПК (русская Win7 SP1) сейчас недоступен.
+- Репозиторий приватный: `archhaze24/tulsu-pe-timetable`. Пользователь работает на macOS. Правило проекта: не коммитить и не пушить без явной просьбы.
 
 ## 2. Текущий статус (главное)
 
-- Импорты exe проходят загрузчик Windows 7. Подтверждено прогоном `38975552911` (`main@4d7d90a`, успех, 11m44s) и скриптом `scripts/win7-imports.py` (раздел 3).
-- На Win7-ПК приложение теперь ЗАПУСКАЕТСЯ, но:
-  - открывается пустое окно с рамкой;
-  - показывается диалог `Could not find the WebView2 Runtime. ...` (текст из `tauri-runtime-wry`, `lib.rs`, при `webview_runtime_installed == false`);
-  - после OK приложение закрывается. Это ожидаемо: Tauri выходит, когда runtime не найден.
-- Причина не установлена. Это уже не импорты, а поиск WebView2 Runtime. Гипотезы:
-  1. Путь. Tauri ставит `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` = `<папка exe>\./WebView2/`. В пути есть кириллица и пробелы (productName «Расписание ТулГУ по физкультуре»). Go-версия использует `C:\WebView2`.
-  2. Версия загрузчика. Наш статический загрузчик от `webview2-com-sys 0.39.1` имеет версию файла 1.0.3800.47. Старый загрузчик из `go-webview2 v1.0.10` (тот, что работает в Go-версии) имеет версию 1.0.992.28. Обе версии содержат одинаковый набор строк, включая `GetCurrentApplicationUserModelId` и `api-ms-win-appmodel-runtime-l1-1-2`. Статически различие не выявлено.
-- Текущая сборка (незакоммичена, раздел 4.2) выбирает папку runtime сама и пишет диагностику в `%USERPROFILE%\.tulsu-pe-timetable\webview2.log`. Следующий шаг: результат её прогона на Win7-ПК (раздел 7).
+- Импорты exe проходят загрузчик Windows 7. Подтверждено прогоном `38975552911` (`main@f47b4a9`, PR #78 смёржен) и скриптом `scripts/win7-imports.py`.
+- На VM приложение запускается, но показывает диалог `Could not find the WebView2 Runtime` и после OK закрывается. Диалог создаёт `tauri-runtime-wry` (`lib.rs`: `webview_runtime_installed: wry::webview_version().is_ok()`).
+- Нативный loader `WebView2Loader` вшит в exe статически: `webview2-com-sys` 0.39.1 на msvc линкует `WebView2LoaderStatic.lib`. На Win7 VM его `GetAvailableCoreWebView2BrowserVersionString` даёт `0x80070032` для любой папки и `0x80070002` для `NULL`.
+  - Это не путь, не версия загрузчика и не AppModel-API: shim `api-ms-win-appmodel-runtime-l1-1-2.dll` не помог (`result-shim.txt`).
+  - Причина нативного `0x80070032` не найдена. Platform Update KB2670838 её не закрывает (раздел 5).
+- Go-версия работает на Win7-ПК, потому что не использует нативный loader. `go-webview2` v1.0.10 без тега `native_webview2loader` (это умолчание) идёт pure-Go путём (`webviewloader/env_create.go`):
+  1. `LoadLibrary("<папка>\EBWebView\x64\EmbeddedBrowserWebView.dll")`;
+  2. `GetProcAddress("CreateWebViewEnvironmentWithOptionsInternal")` и вызов `(1, 1, userDataFolder, options, handler)`. Второй параметр `1` = redistributable (фиксированная версия);
+  3. версия = `ProductVersion` файла client DLL (`findEmbeddedBrowserVersion`). Нативный `GetAvailable` не вызывается;
+    4. options-объект обязателен: `ICoreWebView2EnvironmentOptions` (IID `{2fde08a8-1e9a-4766-8c05-95a9ceb9d1c5}`) и `ICoreWebView2EnvironmentOptions2` (IID `{ff85c98a-1ba7-4a6b-90c8-2b752c89e9e2}`). `TargetCompatibleBrowserVersion` = `86.0.616.0`, если пусто (`kMinimumCompatibleVersion`). Перед вызовом все `WEBVIEW2_*` из `preventEnvAndRegistryOverrides` пустые, в том числе `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`.
+- Tauri идёт только нативным путём: `wry` 0.57.0 `create_environment` вызывает `CreateCoreWebView2EnvironmentWithOptions(NULL, …)`, проверка вызывает `GetAvailable(NULL)`. Поэтому без патча `wry` Tauri на Win7 не запустится, даже если `EmbeddedBrowserWebView.dll` грузится.
+- Вероятная причина `0x80070032` (гипотеза, проверяется тестом v2): `webview2-com` 0.39.1 по умолчанию передаёт `TargetCompatibleBrowserVersion` = `145.0.3800.47` (`CORE_WEBVIEW_TARGET_PRODUCT_VERSION`). Runtime 109 старее, и загрузчик отвечает `ERROR_NOT_SUPPORTED`. Go передаёт `86.0.616.0`, поэтому ей версия 109 подходит.
+- Текущая сборка (`main@f47b4a9`) выбирает папку (`<exe>\WebView2`, затем `C:\WebView2`) через нативный `GetAvailable`. На VM оба варианта дают `0x80070032`, переменная окружения не выставляется. Лог: `%USERPROFILE%\.tulsu-pe-timetable\webview2.log`.
 
-## 3. Импорты exe
+## 3. Импорты exe (решено)
 
-Список из артефакта `38970975453` (до фиксов) и из `38975552911` (после фиксов). Полный список функций по DLL: `python3 scripts/win7-imports.py <exe>`.
+| Импорт (до фиксов) | Что сделано |
+|---|---|
+| `advapi32.dll!EventSetInformation` (ETW, Windows 8+), из статического `WebView2LoaderStatic.lib` | `advapi32.dll` в `/DELAYLOAD`, заглушка возвращает 0 |
+| `combase.dll`: `CoCreateFreeThreadedMarshaler`, `CoTaskMemFree`, `CoTaskMemAlloc` | `combase.dll` в `/DELAYLOAD`, подмена на `ole32.dll` |
+| `api-ms-win-core-winrt-error-l1-1-0.dll!RoOriginateErrorW` | DLL в `/DELAYLOAD`, подмена на `kernel32.dll`, заглушка возвращает FALSE |
+| `api-ms-win-crt-*` (UCRT, нужен KB2999226) | `staticVCRuntime: false` и `+crt-static` |
 
-| Импорт (до фиксов) | Что сделано | Статус |
-|---|---|---|
-| `advapi32.dll!EventSetInformation` (ETW, Windows 8+). Приходит из статического `WebView2LoaderStatic.lib`, динамический `WebView2Loader.dll` импортирует только `KERNEL32` | `advapi32.dll` в `/DELAYLOAD`. Заглушка в `__pfnDliFailureHook2` возвращает 0 | решено, подтверждено скриптом |
-| `combase.dll`: `CoCreateFreeThreadedMarshaler`, `CoTaskMemFree`, `CoTaskMemAlloc` (крейты `windows` и `windows-core` 0.62.2) | `combase.dll` в `/DELAYLOAD`. `__pfnDliNotifyHook2` подменяет DLL на `ole32.dll` (на Windows 7 эти функции там есть) | решено, подтверждено скриптом |
-| `api-ms-win-core-winrt-error-l1-1-0.dll!RoOriginateErrorW` (крейт `windows-result`, вызов только для сообщений ошибок) | DLL в `/DELAYLOAD`. Подмена на `kernel32.dll`, дальше заглушка возвращает FALSE | решено, подтверждено скриптом |
-| `api-ms-win-crt-*-l1-1-0.dll` (динамический UCRT, на Win7 нужен KB2999226). Причина: `static_vcruntime` добавляет `/DEFAULTLIB:ucrt.lib` при `staticVCRuntime: true` | `build.windows.staticVCRuntime: false` и `+crt-static` для MSVC | решено, подтверждено скриптом |
+В `kernel32` после этого +22 функции из статического CRT (`CompareStringW`, `GetACP`, `IsProcessorFeaturePresent`, `VirtualQuery` и др.). Все из эпохи Windows 2000/XP/Vista (по знанию API, страницы Microsoft не открывал).
 
-Что проверено по документации Microsoft (`learn.microsoft.com`): `CompareStringOrdinal` (Windows Vista), `SetWindowDisplayAffinity` (Windows 7). По знанию API (страницы не открывал) на Windows 7 есть функции обычной таблицы: kernel32, user32, gdi32, ole32, shell32, shlwapi, comctl32 v6, dwmapi, imm32, oleaut32, ntdll.
-
-Новые импорты `kernel32` из статического UCRT (+22 функции, появились после `staticVCRuntime: false`): `CompareStringW`, `ExitThread`, `FreeLibraryAndExitThread`, `GetACP`, `GetCPInfo`, `GetCommandLineA`, `GetConsoleOutputCP`, `GetFileType`, `GetOEMCP`, `GetStartupInfoW`, `GetStringTypeW`, `GetTimeZoneInformation`, `IsDebuggerPresent`, `IsProcessorFeaturePresent`, `IsValidCodePage`, `LCMapStringW`, `SetFilePointerEx`, `SetStdHandle`, `TerminateProcess`, `UnhandledExceptionFilter`, `VirtualProtect`, `VirtualQuery`. Все они из эпохи Windows 2000/XP/Vista (по знанию API).
-
-Итог скрипта на `38975552911`: в обычной таблице 11 DLL (`kernel32`, `ntdll`, `user32`, `ole32`, `gdi32`, `shlwapi`, `comctl32`, `dwmapi`, `shell32`, `imm32`, `oleaut32`), подозрительных импортов нет. В отложенной: `advapi32`, `combase`, `api-ms-win-core-winrt-error-l1-1-0`.
+Итог `scripts/win7-imports.py` на `38975552911`: в обычной таблице 11 DLL, подозрительных импортов нет. В отложенной: `advapi32`, `combase`, `api-ms-win-core-winrt-error-l1-1-0`.
 
 ## 4. Что сделано и почему
 
 ### 4.1 Фронтенд (`frontend/`)
 
-- `vite.config.ts`: режим `vite build --mode win7` даёт `build.target: 'chrome109'` и плагин `chrome109Css` (только для build).
-  - Почему: Tailwind 4 пишет `oklch()` и `color-mix(in oklab, var(--color-…) P%, transparent)`. WebView2 109 их не понимает, и цвета пропадают.
-  - Как: lightningcss с `targets: { chrome: 109 << 16 }` в два прохода. 1) `oklch` → hex у палитры `--color-*`. 2) `color-mix(... var(--color-X) P%, transparent)` → подстановка hex из карты палитры, затем второй проход lightningcss, который даёт `#rrggbbaa`.
-  - Плейсхолдер: фолбэк Tailwind `::placeholder{color:currentColor}` заменяется на `…;opacity:.5}`. У placeholder нет фона, так что результат тот же.
-  - Проверка: если после сборки остались `oklch(` или `color-mix(... var(`, сборка падает с ошибкой.
+- `vite.config.ts`: режим `vite build --mode win7` даёт `build.target: 'chrome109'` и плагин `chrome109Css`.
+  - Почему: Tailwind 4 пишет `oklch()` и `color-mix(in oklab, var(--color-…) P%, transparent)`. WebView2 109 их не понимает.
+  - Как: lightningcss с `targets: { chrome: 109 << 16 }` в два прохода. Если после сборки остались `oklch(` или `color-mix(... var(`, сборка падает.
+  - Плейсхолдер `::placeholder` заменяется на непрозрачный вариант с `opacity:.5`.
 - `package.json`: скрипт `build:win7` = `vite build --mode win7`, devDependency `lightningcss ^1.33.0`.
-- Проверено: в win7-CSS 0 вхождений `oklch(` и 0 `color-mix(... var(`. Все `lab()` стоят внутри `@supports (color:lab(...))`.
 - Плагин держим внутри `vite.config.ts`: отдельный `.ts`-файл без расширения даёт warning Vite, с расширением нужны `allowImportingTsExtensions` и `noEmit`, что даёт warning svelte-check.
 
 ### 4.2 Конфиги и Rust (`src-tauri/`)
 
-- `tauri.win7.conf.json` (в `main` с PR #77, менялся в текущей сборке):
+- `tauri.win7.conf.json`:
   - `build.beforeBuildCommand`: `pnpm --dir frontend build:win7`;
-  - `build.windows.staticVCRuntime: false` (см. UCRT в разделе 3);
+  - `build.windows.staticVCRuntime: false`;
   - `bundle.targets`: `["nsis"]`;
-  - `bundle.resources`: `{ "WebView2": "WebView2" }`. Папка runtime кладётся в установку как ресурс: `$INSTDIR\WebView2\msedgewebview2.exe`. Раньше это делал `fixedRuntime`;
-  - `bundle.windows.webviewInstallMode`: `{ "type": "skip" }`. Раньше было `fixedRuntime` с `path: "./WebView2/"`. Почему изменено: при `fixedRuntime` Tauri (tauri 2.12.4, `app.rs`, блок с `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`) всегда перезаписывает переменную значением `<папка exe>\./WebView2/`. Выбрать другую папку было нельзя. При `skip` Tauri переменную не трогает, и её выставляет наш код в `main.rs` (см. ниже).
-- `.cargo/config.toml` (в `main` с PR #77): `[target.'cfg(all(windows, target_env = "msvc"))'] rustflags = ["-C", "target-feature=+crt-static"]`. Почему: `cc` (sqlite через `rusqlite` bundled) компилирует C с `/MD`, если нет `crt-static`. Касается и обычной Windows-сборки.
-- `tauri.conf.json` (в `main` с PR #77): `bundle.icon` += `icons/icon.ico`.
-- `build.rs` (в `main` с PR #77): если `CARGO_CFG_TARGET_VENDOR == "win7"`, в бинарник добавляются `delayimp.lib` и `/DELAYLOAD:` для `advapi32.dll`, `combase.dll`, `api-ms-win-core-winrt-error-l1-1-0.dll`. Флаги `cargo:rustc-link-arg-bins`. Обычная Windows-сборка не меняется.
-- `src/main.rs`: `#[cfg(all(windows, target_vendor = "win7"))] mod win7_compat;` и вызов `win7_compat::prepare_webview2_runtime()` перед `tulsu_pe_timetable_lib::run()` (тоже только win7; в текущей сборке, незакоммичено).
-- `src/win7_compat.rs` (в `main` с PR #77, функция выбора папки и лог добавлены в текущей сборке):
-  - Хуки delay-load: `__pfnDliNotifyHook2` (`dliNotePreLoadLibrary`) сначала пробует исходную DLL через `LoadLibraryA`, при неудаче берёт резерв (`combase.dll` → `ole32.dll`, winrt-error → `kernel32.dll`). `__pfnDliFailureHook2` (`dliFailGetProc`) даёт заглушки: `EventSetInformation` возвращает 0 (успех без действия), `RoOriginateErrorW` возвращает FALSE. Для остальных имён возвращает NULL, тогда при вызове будет исключение «procedure entry point».
-  - Хуки в бинарнике, а не в rlib: объекты бинарника линкуются всегда. Объект из rlib-архива линкер может не подтянуть, и хуки молча останутся пустыми.
-  - `prepare_webview2_runtime()` (до старта Tauri):
-    1. Если `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` уже задана, выбор пропускается.
-    2. Иначе кандидаты по порядку: `<папка exe>\WebView2`, затем `C:\WebView2` (её использует Go-версия). Для каждого вызывается `GetAvailableCoreWebView2BrowserVersionString(папка)`. Первая папка с HRESULT ≥ 0 записывается в переменную окружения.
-    3. Финальная проверка `GetAvailable(NULL)`: та же, что делает Tauri (`wry::webview_version()`).
-    4. Лог (после каждого шага, чтобы не потерять данные при аварии): `%USERPROFILE%\.tulsu-pe-timetable\webview2.log`. В строке: папка, есть ли `msedgewebview2.exe` и `EBWebView\x64\EmbeddedBrowserWebView.dll`, HRESULT в hex и версия.
-  - Почему `EventSetInformation` возвращает успех: её вызывает трассировка WebView2 loader, и ненулевой код может увести её в ветку ошибки.
-  - Edition 2024: `#[unsafe(no_mangle)]` и `unsafe extern "system" { ... }`. `LoadLibraryA` и `GetAvailableCoreWebView2BrowserVersionString` объявлены вручную, новых крейтов нет. Символ `GetAvailable...` есть в `WebView2LoaderStatic.lib` (его линкует `webview2-com-sys`).
-- `.gitignore`: `src-tauri/WebView2` (runtime 444 МБ, `msedge.dll` 229 МБ, а GitHub не принимает файлы больше 100 МБ), `WebView2-*.zip`.
+  - `bundle.resources`: `{ "WebView2": "WebView2" }`. Папка runtime попадает в установку как `$INSTDIR\WebView2`;
+  - `bundle.windows.webviewInstallMode`: `{ "type": "skip" }`. Почему: при `fixedRuntime` Tauri (2.12.4, `app.rs`) всегда перезаписывает `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` значением `<exe>\./WebView2/`.
+- `.cargo/config.toml`: `[target.'cfg(all(windows, target_env = "msvc"))'] rustflags = ["-C", "target-feature=+crt-static"]`. Почему: `cc` (sqlite) собирает C с `/MD` без него.
+- `tauri.conf.json`: `bundle.icon` += `icons/icon.ico`.
+- `build.rs`: при `CARGO_CFG_TARGET_VENDOR == "win7"` добавляет `delayimp.lib` и `/DELAYLOAD:` для `advapi32.dll`, `combase.dll`, `api-ms-win-core-winrt-error-l1-1-0.dll` (`cargo:rustc-link-arg-bins`).
+- `src/main.rs`: `#[cfg(all(windows, target_vendor = "win7"))] mod win7_compat;` и вызов `win7_compat::prepare_webview2_runtime()` перед `run()`.
+- `src/win7_compat.rs`:
+  - хуки delay-load: `__pfnDliNotifyHook2` (combase → ole32, winrt-error → kernel32), `__pfnDliFailureHook2` (`EventSetInformation` → 0, `RoOriginateErrorW` → FALSE). Это работает, оставить;
+  - `prepare_webview2_runtime()`: выбирает папку через нативный `GetAvailable` и ставит `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`. На Win7 не работает (раздел 2), переписать под pure-Go путь (раздел 7);
+  - хуки в бинарнике, а не в rlib: объекты бинарника линкуются всегда;
+  - edition 2024: `#[unsafe(no_mangle)]`, `unsafe extern "system" {}`.
+- `.gitignore`: `src-tauri/WebView2` (444 МБ, `msedge.dll` 229 МБ > лимита GitHub), `WebView2-*.zip`.
 
 ### 4.3 Скрипты (`scripts/`)
 
-- `build-win7.mjs`: проверяет `src-tauri/WebView2/msedgewebview2.exe` и запускает `pnpm tauri build --config src-tauri/tauri.win7.conf.json` с переменными:
-  - `RUSTUP_TOOLCHAIN` = `process.env.WIN7_TOOLCHAIN ?? 'stable'`;
-  - `RUSTC_BOOTSTRAP=1` и `CARGO_UNSTABLE_BUILD_STD=std` (сборка std под tier-3 таргет из исходников);
-  - `CARGO_BUILD_TARGET=x86_64-win7-windows-msvc`. Это переменная, а не `--target` (раздел 6, пункт 2).
-- `win7-imports.py`: разбор таблицы импортов PE на чистом Python 3. Смотрит обычную таблицу (грузится на старте) и отложенную (delay-load). В обычной таблице подозрительный импорт — проблема, в отложенной — ок, если есть хук в `win7_compat.rs`.
+- `build-win7.mjs`: проверяет `src-tauri/WebView2/msedgewebview2.exe` и запускает `pnpm tauri build --config src-tauri/tauri.win7.conf.json` с `RUSTUP_TOOLCHAIN=${WIN7_TOOLCHAIN ?? 'stable'}`, `RUSTC_BOOTSTRAP=1`, `CARGO_UNSTABLE_BUILD_STD=std`, `CARGO_BUILD_TARGET=x86_64-win7-windows-msvc`.
+- `win7-imports.py`: разбор таблиц импорта PE (обычная и отложенная), запускать как `python3 -B`.
+- `scripts/win7/` (тесты для Windows 7 без сборки Tauri, в репозитории):
+  - `test-env.c` (v3): создание environment через `EmbeddedBrowserWebView.dll`, повторяет pure-Go loader: options-объект, пустые `WEBVIEW2_*`, лог после каждого шага, vectored exception handler (код, адрес, смещение в модуле). Сборка и запуск в разделе 8. Главный тест текущего этапа;
+  - `check-runtime.ps1`: какие функции из импортов runtime-DLL отсутствуют в системе;
+  - `test-loader2.ps1`: нативный `GetAvailable` для старого загрузчика и наличие API-наборов. Ожидает `C:\test\WebView2Loader.dll` (старый загрузчик из `go-webview2` v1.0.10, файл `webviewloader/x64/WebView2Loader.dll`);
+  - `test-shim.ps1`: тест shim `api-ms-win-appmodel-runtime-l1-1-2.dll` (отрицательный результат).
 
 ### 4.4 CI (`.github/workflows/`)
 
-- `win7-installer.yml` (в `main`): триггер `workflow_dispatch`, runner `windows-latest`.
-  - Rust `1.99.1` (`WIN7_TOOLCHAIN`) с `rust-src`, `Swatinem/rust-cache@v2` с `workspaces: src-tauri`. Node 24, pnpm 12.6.0.
-  - Шаг «Скачать WebView2»: `gh release download webview2-109 --pattern WebView2-109.zip`, затем `Expand-Archive` в `src-tauri/WebView2` и проверка `msedgewebview2.exe` в корне.
-  - `pnpm install --frozen-lockfile`, `pnpm build:win7`, артефакт `tulsu-pe-timetable-win7` (`*.exe` из `bundle/nsis`), retention 7 дней.
-- `windows.yml` (в `main` с PR #77): обычная сборка для Win10/11.
-  - `check` (`windows-latest`): PR, push в `main`, теги. На теге проверка, что тег `vX.Y.Z` совпадает с `version` в `tauri.conf.json`. Затем `pnpm check`. На PR #77 прошёл.
-  - `build` (`needs: check`): теги `v*` и вручную, `pnpm build`, артефакт `windows-installers` (nsis и msi). `release` (ubuntu, теги): `gh release create` или `gh release upload --clobber`. Эти джобы ещё не запускались.
-- Версии: `WIN7_TOOLCHAIN: 1.99.1` (std под win7 собиралась на ней), `PNPM_VERSION: 12.6.0`, `NODE_VERSION: '24'`.
+- `win7-installer.yml` (`main`): `workflow_dispatch`, `windows-latest`, Rust `1.99.1` с `rust-src`, Node 24, pnpm 12.6.0. Шаг «Скачать WebView2» из релиза `webview2-109`. Артефакт `tulsu-pe-timetable-win7`, хранится 7 дней.
+- `windows.yml` (`main`): `check` на PR, push в `main` и теги (`pnpm check`, прошёл на PR #77 и #78). `build` и `release` на теги `v*` ещё не запускались.
 
 ### 4.5 Релиз WebView2
 
-- Релиз `webview2-109` в приватном репозитории, ассет `WebView2-109.zip` (207 755 364 байт), загружен пользователем. Тег указывает на старый коммит `5666346`, это не мешает (`windows.yml` работает на теги `v*`).
-- Архив = содержимое папки runtime, `msedgewebview2.exe` лежит в корне. Создание: `cd src-tauri/WebView2 && zip -r ../../WebView2-109.zip . && cd ../..`.
-- Версия: 109.0.1518.78 (файл `109.0.1518.78.manifest` в папке). Внутри: `EBWebView/x64/EmbeddedBrowserWebView.dll` (нужен загрузчику), `msedge.dll`, `msedgewebview2.exe`.
+- Релиз `webview2-109`, ассет `WebView2-109.zip` (207 755 364 байт), `msedgewebview2.exe` в корне архива. Версия 109.0.1518.78.
+- Внутри: `EBWebView/x64/EmbeddedBrowserWebView.dll` (4.8 МБ, его проверяет загрузчик), `msedge.dll` (229 МБ), `msedgewebview2.exe`.
+- Локальная копия для анализа: `src-tauri/WebView2/` (в git не попадает).
 
 ## 5. Проверки: что подтверждено
 
-- CI:
-  - `win7-installer.yml`, прогон `38970975453` (`main@98c100c`): успех, но импорты не проходили загрузчик (ошибка `EventSetInformation` на Win7-ПК).
-  - `win7-installer.yml`, прогон `38975552911` (`main@4d7d90a`): успех, 11m44s, артефакт `tulsu-pe-timetable-win7`. Импорты проходят (раздел 3). Установщик содержит `WebView2/msedgewebview2.exe` и `WebView2/EBWebView/x64/EmbeddedBrowserWebView.dll`.
-  - `windows.yml`, `check` на PR #77: успех.
-- Загрузчики (сравнение, статический из `webview2-com-sys 0.39.1` и динамический из `go-webview2 v1.0.10`):
-  - версии файлов 1.0.3800.47 и 1.0.992.28. Одинаковый набор строк (`EBWebView\x64\EmbeddedBrowserWebView.dll`, `version.dll`, `GetFileVersionInfoSizeW`, `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` и др.);
-  - импорты: KERNEL32 (86 у нового, 80 у старого), отложенно `ADVAPI32`, `ole32`;
-  - версионных констант (минимальной версии runtime) в строках не найдено.
-- Документация Microsoft:
-  - `GetAvailableCoreWebView2BrowserVersionString`: если задано переопределение (переменная окружения), оно используется; `ERROR_FILE_NOT_FOUND`, если runtime не найден;
-  - `CreateCoreWebView2EnvironmentWithOptions`: путь к fixed runtime может быть относительным (от exe) или абсолютным.
-- Go-версия (`origin/legacy-go-version-win7`, `main.go`): `WebviewBrowserPath: C:\WebView2`.
-- Локально на macOS (текущая сборка):
-  - `rustc --edition 2024 --crate-type lib --emit=metadata --target x86_64-pc-windows-msvc src-tauri/src/win7_compat.rs`: без ошибок и предупреждений;
-  - `cargo check --manifest-path src-tauri/Cargo.toml`: без предупреждений;
-  - `pnpm tauri build --debug --no-bundle --config src-tauri/tauri.win7.conf.json`: конфиг принят, сборка прошла;
-  - `pnpm check`: exit 0.
-- Не проверено: запуск на Win7 с текущей сборкой; линковка `GetAvailableCoreWebView2BrowserVersionString` в CI; то, что NSIS раскладывает ресурс `WebView2` в `$INSTDIR\WebView2`.
+- CI: `38970975453` (импорты не проходили загрузчик), `38975552911` (`main@f47b4a9`): успех, импорты проходят. Установщик содержит `WebView2/msedgewebview2.exe` и `WebView2/EBWebView/x64/EmbeddedBrowserWebView.dll`.
+- Лог с VM (`webview2 (2).log`): `<exe>\WebView2` → `hr=0x80070032`, `C:\WebView2` → `hr=0x80070032`, итоговая проверка Tauri (`env=None`) → `hr=0x80070002`.
+- `result.txt` (старый загрузчик, PowerShell): `C:\WebView2` → `0x80070032`, `NULL` → `0x80070002`.
+- `check-vm.txt`: runtime-DLL загружается, отсутствуют 0 из 207 функций `kernel32` и 0 из 13 `oleaut32`.
+- `result2-vm.txt`: отсутствуют API-наборы `api-ms-win-core-version-l1-1-0`, `api-ms-win-core-synch-l1-2-0`, `api-ms-win-appmodel-runtime-l1-1-2` (ошибка 126), а также `kernelbase.dll!GetCurrentApplicationUserModelId` и `GetCurrentPackageFullName`. `version.dll!GetFileVersionInfoExW` есть.
+- `result-shim.txt`: shim загружен, `GetAvailable(C:\WebView2)` → `0x80070032`, `GetAvailable(NULL)` → `0x80070002`. Гипотеза AppModel отвергнута.
+- Сравнение загрузчиков: версии файлов 1.0.3800.47 (`webview2-com-sys` 0.39.1) и 1.0.992.28 (`go-webview2` 1.0.10). Строки одинаковые, кроме новых в 1.0.3800 (ETW, каналы `ChannelSearchKind`, `ReleaseChannels`).
+- Импорты `WebView2Loader.dll` (`webview2-com-sys` 0.39.1, x64): eager-импорт только `KERNEL32`. Остальное грузится динамически (строки): `kernelbase.dll`, `version.dll`, `api-ms-win-core-version-l1-1-0`, `api-ms-win-appmodel-runtime-l1-1-2`, `api-ms-win-core-synch-l1-2-0`, `ole32`, `shell32`. Есть `OutputDebugString` и сообщения `WebView2: Failed to find …` (их можно поймать DebugView на VM).
+- Импорты runtime (`src-tauri/WebView2`, `objdump -p`): `msedgewebview2.exe` → `KERNEL32`, `msedge_elf.dll`; `msedge.dll` → `KERNEL32`, `OLEAUT32`, `WINMM`, `msedge_elf.dll`; `EmbeddedBrowserWebView.dll` → `KERNEL32`, `OLEAUT32`; `msedge_elf.dll` → `KERNEL32`. Прямых `api-ms-win-*` и UCRT нет.
+- Экспорты `EmbeddedBrowserWebView.dll`: `CreateWebViewEnvironmentWithOptionsInternal`, `DllCanUnloadNow`.
+- v2 (`env-result.txt`, Win7 VM): `CoInitializeEx`, `LoadLibraryW`, `GetProcAddress` OK. `CreateWebViewEnvironmentWithOptionsInternal` → `0x00000000`, `environment completion hr: 0x00000000`, `QueryInterface(ICoreWebView2Environment)` → `0x00000000`. Значит, environment на runtime 109 создаётся с options (`TargetCompatibleBrowserVersion` = `86.0.616.0`) и без нативного loader.
+- APPCRASH v2 (`crash2.txt`): тот же RVA `0xbf80d`, `read target=0xFFFFFFFFFFFFFFFF`. Падение на `get_BrowserVersionString` (vtbl[5]) у env, то есть уже после создания. Thunk читает `[env+0x10]`, а затем `[rax+0x38]`, значит первое слово внутреннего объекта равно `0xFFFFFFFFFFFFFFC7` (невалидно). Вероятная причина: env освобождён. Тест v2 не делал AddRef внутри callback и вызвал QueryInterface уже после возврата из callback. По правилам COM объект из callback живёт только до возврата. Go делает QueryInterface внутри callback. Не проверено, но согласуется с данными.
+- APPCRASH `test-env` v1 (`crash.txt`): `EmbeddedBrowserWebView.dll` 109.0.1518.78, `Exception Offset` `0xbf80d` = VA `0x1800bf80d` (ImageBase `0x180000000`, timestamp DLL совпадает с локальной копией). Thunk `0x1800bf806`: `mov 0x10(%rcx),%rcx; mov (%rcx),%rax; mov 0x38(%rax),%rax`, то есть вызов метода vtable №7 = `get_TargetCompatibleBrowserVersion` options-объекта. v1 передавал `options = NULL` и выставлял `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` в папку. Оба отличия от Go. Вывод: options обязателен, пустые env обязательны.
+- Обновления Windows 7 (проверено по содержимому `.msu` на Mac):
+  - KB2670838 x64 (Platform Update, GUID `0edb0e28-0c35-41ba-b52c-c8576e52c395`): содержит `api-ms-win-downlevel-*` (advapi32, normaliz, ole32, shell32, shlwapi, user32, version) и DirectX (`d2d1`, `d3d10*`, `d3d11`, `dwrite`, `dxgi`). `api-ms-win-core-*` и `kernelbase.dll` в нём нет. Значит, он не закрывает недостающие `api-ms-win-core-version/synch` и `appmodel`. Не ставить как фикс.
+  - KB2533623 в каталоге Microsoft Update только для Vista x64 (`windows6.0-…`). KB2999226 в поиске только для Vista и Server 2008. Win7-вариантов не нашёл.
+  - SSU KB4490628 x64 (GUID `e45cd0f7-e37e-405e-8204-ade6d492b713`) и SHA-2 KB4474419 v3 x64 (GUID `38222b3b-2bd2-4269-880d-35feddf42984`) скачаны в `/tmp/pu/` (временно, вне repo). Не проверены на VM. Ставить, только если тест покажет проблему с подписью браузера.
+- Go-версия: `pkg/edge/chromium.go:136` для фиксированного пути вызывает Go-реализацию версии, а не нативный `GetAvailable`.
+- `webview2-com` 0.39.1 (`src/options.rs`): `CoreWebView2EnvironmentOptions::default()` берёт `TargetCompatibleBrowserVersion` из `CORE_WEBVIEW_TARGET_PRODUCT_VERSION` = `145.0.3800.47` (`webview2-com-sys` `bindings.rs:1013`). Go-версия подставляет `86.0.616.0` (`kMinimumCompatibleVersion`).
+- Локально (macOS): `rustc --emit=metadata --target x86_64-pc-windows-msvc` для `win7_compat.rs` без предупреждений, `cargo check` чистый, `pnpm check` exit 0. Тест `scripts/win7/test-env.c` собирается mingw-w64 без предупреждений, импорты только `KERNEL32`, `USER32`, `ole32`.
+- Не проверено: запуск на рабочей Win7-машине; `test-env.exe` на VM (ждём результат).
 
 ## 6. Грабли (не повторять)
 
-1. Nightly от 2026-10-15 не собирает std для `x86_64-win7-windows-msvc`: ошибка `is_console` в `library/std/src/sys/stdio/windows.rs`. Работает stable 1.99.1 с `RUSTC_BOOTSTRAP=1`.
-2. Tauri CLI отвергает `--target x86_64-win7-windows-msvc` с сообщением "does not exist": проверка идёт по `rustup target list`. Решение: переменная `CARGO_BUILD_TARGET`.
-3. `build.windows.staticVCRuntime` по умолчанию `true` → `static_vcruntime` добавляет `ucrt.lib` → динамический UCRT → `api-ms-win-crt-*`. Для win7 ставим `false`.
-4. `cc` без `crt-static` собирает C с `/MD`. Нужен `+crt-static` для всех MSVC-таргетов.
-5. Динамическая загрузка и статический импорт — разные вещи. tao, wry и tauri-runtime-wry грузят DPI-функции через `GetProcAddress`: это безопасно. Проблемы только у статических импортов в таблице.
-6. Ошибка загрузчика = первый отсутствующий импорт, а не полный список. Поэтому полный список берём скриптом.
-7. Git: runtime не коммитить. `msedge.dll` 229 МБ > лимит GitHub 100 МБ, и файл навсегда останется в истории. Только релиз.
-8. Microsoft публикует Fixed Version только для двух последних мажорных версий. 109 брать из `C:\WebView2` рабочего Win7-ПК или из архива.
-9. Vite: локальный `.ts`-импорт без расширения даёт warning, с расширением нужен `allowImportingTsExtensions` и `noEmit`. Плагин держим в `vite.config.ts`.
-10. `tsc -p frontend/tsconfig.node.json` выдаёт 40 ошибок про `Buffer` из типов vite. Это не наши ошибки, в `pnpm check` они не участвуют.
-11. `pnpm/action-setup@v4` даёт предупреждение про Node 20. Работает, так как принудительно идёт на node24.
-12. wry: часть вызовов WebView2 через `cast()?` на интерфейсах новее 109 (`set_theme`, `clear_all_browsing_data`, `set_memory_usage_level` и др.). Это не стартовый путь, но проверить при тесте на Win7.
-13. Хуки delay-load должны жить в бинарнике (`main.rs`), а не в rlib. Иначе линкер может не подтянуть объект, и хуки останутся пустыми без ошибки сборки.
-14. Edition 2024: `#[no_mangle]` пишется как `#[unsafe(no_mangle)]`, `extern "system" {}` как `unsafe extern "system" {}`.
-15. Код только для Windows 7 проверяется на macOS через `rustc --emit=metadata --target x86_64-pc-windows-msvc` (без линковки). Если cargo показывает старый результат («Fresh»), для повторной проверки предупреждений cfg сделайте `touch` файла.
-16. Tauri при `fixedRuntime` сам выставляет `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` и перезаписывает любое значение. Чтобы выбирать папку самим, нужен `webviewInstallMode: skip`.
-17. `tauri build --no-bundle` на macOS с `bundle.resources` копирует `WebView2` (444 МБ) в `src-tauri/target/debug/`. После проверки удалить `src-tauri/target/debug/WebView2`.
-18. Диалог «Could not find the WebView2 Runtime» показывает `tauri-runtime-wry`, когда `GetAvailableCoreWebView2BrowserVersionString(NULL)` вернул ошибку. Закрытие диалога завершает приложение (так устроен Tauri).
-19. `gh` в этом треде работает без песочницы. Для `gh` не нужны `allow_hosts` и `unsandboxed`.
+1. Nightly от 2026-10-15 не собирает std для `x86_64-win7-windows-msvc`. Работает stable 1.99.1 с `RUSTC_BOOTSTRAP=1`.
+2. Tauri CLI отвергает `--target x86_64-win7-windows-msvc`. Использовать `CARGO_BUILD_TARGET`.
+3. `build.windows.staticVCRuntime` по умолчанию `true` → `ucrt.lib` → `api-ms-win-crt-*`. Для win7 — `false`.
+4. `cc` без `crt-static` собирает C с `/MD`. Нужен `+crt-static`.
+5. Ошибка загрузчика Windows = первый отсутствующий импорт. Полный список — скриптом.
+6. Git: runtime не коммитить. `msedge.dll` 229 МБ > лимита GitHub 100 МБ. Только релиз.
+7. Vite: `.ts`-плагин держим в `vite.config.ts`.
+8. Edition 2024: `#[unsafe(no_mangle)]`, `unsafe extern "system" {}`.
+9. Хуки delay-load — в бинарнике, не в rlib.
+10. При `fixedRuntime` Tauri перезаписывает `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`. Свой выбор папки работает только при `skip`.
+11. `tauri build --no-bundle` на macOS с `bundle.resources` копирует `WebView2` (444 МБ) в `src-tauri/target/debug/`. Удалить после проверки.
+12. `0x80070032` у нативного `GetAvailable` на голой Win7: причина не найдена. Не путь, не версия загрузчика, не AppModel (shim не помог). Не путать с `0x80070002` (runtime не найден, нормально для `NULL`).
+13. Go-exe из `legacy-go-version-win7` — Go 1.25.0, требует `bcryptprimitives.dll`. Не тестовая сборка для Win7 и не baseline. Baseline нужен Go 1.20 (последний с Win7).
+14. `wmic qfe get HotFixID` показывает только QFE-обновления. Platform Update (KB2670838) даёт `api-ms-win-downlevel-*` и DirectX, а не `api-ms-win-core-*`. Не полагаться на него как на фикс.
+15. Git: после squash-мерджа PR нельзя продолжать ту же ветку с её старой историей: появляются add/add конфликты. Новую работу делать от `main`.
+16. `gh` работает без песочницы в этом треде.
+17. `webview2-com-sys` на msvc линкует loader статически. Подменить `CreateCoreWebView2EnvironmentWithOptions` из отдельной DLL нельзя. Обход только через `EmbeddedBrowserWebView.dll` (патч `wry`).
+18. Проверка Tauri `wry::webview_version()` идёт через `GetAvailable(NULL)`. Выставление `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` для неё не проверено; считать, что не помогает, пока не проверено.
+19. Shim-DLL собирать mingw-w64 с `-nostdlib` и входом `DllMain`. Иначе появляются `api-ms-win-crt-*` импорты, которых нет без KB2999226. Для exe аналогично: `-nostdlib -nostartfiles -Wl,-e,mainCRTStartup`.
+20. Options-объект для `CreateWebViewEnvironmentWithOptionsInternal` обязателен. `NULL` даёт access violation в `EmbeddedBrowserWebView.dll` (APPCRASH на VM, v1).
+21. Pure-путь требует пустую `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`. `prepare_webview2_runtime` сейчас выставляет её в папку, для pure-пути это неправильно.
+22. `TargetCompatibleBrowserVersion` больше версии runtime даёт `ERROR_NOT_SUPPORTED` (гипотеза). В `webview2-com` 0.39.1 по умолчанию это `145.0.3800.47`.
+23. COM: объект, переданный в callback (environment, controller), валиден только до возврата из callback. Нужно AddRef или QueryInterface внутри callback, иначе use-after-free. Ошибка была в `test-env` v2, исправлено в v3.
 
 ## 7. Открытые решения и следующие шаги
 
-Статус: путь A (Tauri на Win7) выбран пользователем. Импорты решены. Сейчас проблема в поиске WebView2 Runtime.
+Статус: импорты решены. Блокер: нативный loader на Win7 не создаёт environment (вероятно из-за target version `145.0.3800.47`). Pure-Go путь: environment на VM создаётся (test v2). Падение в тесте исправлено в v3, результат ждём. Текущий путь проверки: pure-Go путь Go-версии (`EmbeddedBrowserWebView.dll`).
 
-Следующие шаги:
-1. Закоммитить текущие изменения и запустить `win7-installer.yml` (нужно разрешение пользователя, правило проекта). Незакоммичено: `src-tauri/src/win7_compat.rs`, `src-tauri/src/main.rs`, `src-tauri/tauri.win7.conf.json`, `docs/windows7.md`.
-2. Пользователь ставит установщик на Win7-ПК, запускает и присылает содержимое файла `%USERPROFILE%\.tulsu-pe-timetable\webview2.log` (например, `C:\Users\<имя>\.tulsu-pe-timetable\webview2.log`). Там три типа строк:
-   - `<папка>: msedgewebview2.exe=..., EmbeddedBrowserWebView.dll=..., hr=0x..., версия=...` для `<папка exe>\WebView2` и `C:\WebView2`;
-   - `как проверяет Tauri ...` — итоговая проверка, та же, что делает Tauri.
-3. Как читать лог:
-   - `<exe>\WebView2` даёт `hr=0x00000000` → путь был не тем. Дальше проверить, что приложение открывается.
-   - `<exe>\WebView2` даёт ошибку, а `C:\WebView2` даёт `hr=0x00000000` → дело в пути (кириллица или пробелы). Варианты: ставить в ASCII-путь (например, поменять `productName` для win7 или копировать runtime в `%LOCALAPPDATA%`).
-   - Оба дают ошибку с одним и тем же HRESULT → дело в загрузчике или версии runtime. Вариант: загрузчик из `go-webview2 v1.0.10` (тот, что работает в Go-версии) через динамическую загрузку `WebView2Loader.dll`. Это пункт 5 ниже.
-   - Окно не открылось, а лог пуст или обрывается → упала диагностика или загрузчик, нужен текст ошибки Windows и содержимое лога.
-4. Если запуск падает при вызове функции, сообщение «procedure entry point» назовёт функцию. Для неё нужна заглушка в `win7_compat.rs`.
-5. Запасной вариант, если загрузчик не принимает runtime 109: динамический `WebView2Loader.dll` из `go-webview2 v1.0.10`.
-   - (a) `[patch.crates-io]` с локальной копией `webview2-com-sys` и условием `cfg(target_vendor = "win7")` в макросе `link_webview2`. Минус: копия крейта ~10 МБ.
-   - (b) таргет `x86_64-win7-windows-gnu` (не проверено, нужен MinGW в CI).
-   - Положить DLL рядом с exe через `bundle.resources`.
-6. Путь B (запасной для пользователя): оставить Go-версию на Win7-ПК, Tauri выпускать только для Windows 10/11. Рекомендация: если после двух-трёх итераций на Win7-ПК Tauri не работает, перейти на путь B.
+1. Тест `scripts/win7/test-env.c` v3 (собран на Mac: `/tmp/envtest/test-env.exe`, архив `~/Downloads/test-env.zip`). Запустить на VM: распаковать в `C:\test\`, в cmd `cd C:\test`, затем `test-env.exe`. Результат: в консоли и в `C:\test\env-result.txt` (файл пишется после каждого шага; при падении там строки `exception code=… module_offset=…`). Ожидаемый успех:
+   - `CreateWebViewEnvironmentWithOptionsInternal returned: 0x00000000`;
+   - `environment completion hr: 0x00000000`;
+   - `browser version: 109.0.1518.78`;
+   - `controller completion hr: 0x00000000`.
+   Тест ждёт до 60 с на каждый этап и печатает таймаут. В v3 сначала создаётся controller, потом вызывается `get_BrowserVersionString`. В `env-result.txt` дополнительно пишутся `environment vtbl[0..7]` и `+0x10` (смещения относительно DLL), это диагностика.
+2. Если п.1 успешен, патч `wry` 0.57.0 только для win7 (`cfg(target_vendor = "win7")`):
+   - `create_environment`: при заданной `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` вызывать `CreateWebViewEnvironmentWithOptionsInternal(TRUE, 1, userDataFolder, options, handler)` из `EBWebView\x64\EmbeddedBrowserWebView.dll` (`LoadLibraryW` + `GetProcAddress`). Иначе стандартный путь;
+   - `platform_webview_version`: при заданной папке брать `ProductVersion` файла client DLL (`GetFileVersionInfoW`, `VerQueryValueW`);
+   - `prepare_webview2_runtime`: выбирать папку через `LoadLibrary` + `GetProcAddress` вместо `GetAvailable`.
+      - options: передавать options wry с `TargetCompatibleBrowserVersion` = `86.0.616.0` (или `109.0.1518.78`), а не `145.0.3800.47`. Пустые `WEBVIEW2_*` для вызова внутренней функции.
+   Нужен vendored `wry` в репозитории через `[patch.crates-io]`. Это новая зависимость, согласовать с пользователем до добавления.
+3. Если environment создаётся, а controller падает: проверить подпись браузера (SSU `KB4490628` + SHA-2 `KB4474419` v3 из `/tmp/pu/`) и недостающие `api-ms-win-*` (через импорты `msedge_elf.dll` и `msedge.dll`).
+4. Если environment не создаётся: DebugView (Sysinternals) на VM, фильтр по `WebView2:`. Loader пишет причину через `OutputDebugString`.
+5. Путь B (запасной для пользователя): Go-версия на Win7-ПК, Tauri только для Windows 10/11. Рекомендовать, если пункты 2–4 не работают.
 
 ## 8. Команды
 
-- Локально:
-  - `pnpm check`
-  - `pnpm --filter frontend run build:win7` (проверка CSS: 0 `oklch(`, 0 `color-mix(... var(`)
-  - `pnpm tauri build --debug --no-bundle --config src-tauri/tauri.win7.conf.json` (валидация конфига на macOS; потом удалить `src-tauri/target/debug/WebView2`)
-  - `rustc --edition 2024 --crate-type lib --emit=metadata --target x86_64-pc-windows-msvc src-tauri/src/win7_compat.rs --out-dir <tmp>` (типы Win7-кода, без линковки)
-  - `cargo check --manifest-path src-tauri/Cargo.toml` (предупреждения host-сборки)
-- CI Win7:
-  - `gh workflow run win7-installer.yml --ref <ветка>` (после коммита и пуша) или через вкладку Actions
-  - статус: `gh run list --workflow win7-installer.yml`
-  - логи упавшего шага: `gh run view <id> --log-failed`
-- Артефакт и импорты:
-  - `gh run download <id> --name tulsu-pe-timetable-win7 --dir <tmp>`
-  - `7z x "<tmp>/<имя>-setup.exe" -o<tmp>/extract` (нужен p7zip: `brew install p7zip`)
-  - `python3 -B scripts/win7-imports.py "<tmp>/extract/tulsu-pe-timetable.exe"` (`-B`, чтобы не создавать `__pycache__`)
-  - временную папку удалять после проверки, она не в `.gitignore`.
-- Не запускать `pnpm dev` без явной просьбы (см. `AGENTS.md`).
+- Локально: `pnpm check`; `cargo check --manifest-path src-tauri/Cargo.toml`; `rustc --edition 2024 --crate-type lib --emit=metadata --target x86_64-pc-windows-msvc src-tauri/src/win7_compat.rs --out-dir <tmp>`; `pnpm tauri build --debug --no-bundle --config src-tauri/tauri.win7.conf.json` (потом удалить `src-tauri/target/debug/WebView2`).
+- Тест pure-Go пути: `x86_64-w64-mingw32-gcc -O2 -fno-stack-protector -nostdlib -nostartfiles -Wl,-e,mainCRTStartup -o test-env.exe scripts/win7/test-env.c -lkernel32 -lole32 -luser32`; проверка импортов `x86_64-w64-mingw32-objdump -p test-env.exe | grep "DLL Name"` (ожидаем только `KERNEL32`, `USER32`, `ole32`).
+- CI: `gh workflow run win7-installer.yml --ref <ветка>`; `gh run list --workflow win7-installer.yml`; `gh run view <id> --log-failed`.
+- Артефакт: `gh run download <id> --name tulsu-pe-timetable-win7 --dir <tmp>`; `7z x "<tmp>/*.exe" -o<tmp>/extract`; `python3 -B scripts/win7-imports.py <tmp>/extract/tulsu-pe-timetable.exe`.
+- Тесты на VM: `scripts/win7/test-env.c` (главный), `scripts/win7/test-loader2.ps1` и `scripts/win7/check-runtime.ps1` (для `test-loader2.ps1` нужен `C:\test\WebView2Loader.dll`).
+- Обновления (скачивание на Mac): Microsoft Update Catalog, `https://www.catalog.update.microsoft.com/Search.aspx?q=KB…`, затем POST на `DownloadDialog.aspx` с `updateIDs` (GUID из поиска). Ссылки `.msu` на `catalog.s.download.windowsupdate.com`.
 
-## 9. Состояние git (на момент записи)
+## 9. Состояние git
 
-- `main` = `origin/main` = `4d7d90a feat: windows build action (#77)` (squash-мердж PR #77). Основа: `98c100c` (PR #76 «windows 7 support»).
-- Ветка `build` = `origin/build` = `8cec776 feat: win7 fixes`. Дерево такое же, как у `main`.
-- Локальный `main` отстаёт (`4c66424`) и расходится с `origin/main` из-за squash-мерджа. Синхронизировать по решению пользователя.
-- Незакоммичено: `src-tauri/src/win7_compat.rs`, `src-tauri/src/main.rs`, `src-tauri/tauri.win7.conf.json`, `docs/windows7.md`.
-- Проверить актуальное состояние: `git --no-pager log --oneline -5` и `git --no-optional-locks status --short`.
+- `main`: Win7-код из PR #76, #77 и #78 (squash). Актуальный хеш и последние коммиты см. в `git log`.
+- `build` = `origin/build` = `99e1fa6`: старая ветка PR #78. После squash её история не совпадает с `main`, новую работу из неё не вести.
+- Локально есть `backup/build-ad449dc` (старая история, только локально) и `win7` (старая ветка, удалённой нет).
+- Диагностика Win7 (`docs/windows7.md`, `scripts/win7/`) отправлена веткой `win7-diagnostics` и смёржена в `main` через PR (squash). Номер PR и хеш см. в `git log`. `docs/code-review.md` принадлежит другому агенту, его не трогать и не коммитить.
+- Проверить: `git --no-pager log --oneline -5` и `git --no-optional-locks status --short`.
