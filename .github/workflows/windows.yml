@@ -117,6 +117,13 @@ jobs:
           merge-multiple: true
           path: installers
 
+      # upload-artifact сохраняет подпапки nsis/ и msi/ из общего пути bundle/, плоскими их делаем здесь.
+      - name: Собрать установщики в одну папку
+        working-directory: installers
+        run: |
+          find . -mindepth 2 -type f -exec mv {} . \;
+          find . -mindepth 1 -type d -empty -delete
+
       - name: Посчитать SHA256
         working-directory: installers
         run: |
