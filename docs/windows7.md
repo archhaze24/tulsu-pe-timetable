@@ -163,7 +163,7 @@ C:\Users\<user>\AppData\Local\Расписание ТулГУ по физкул�
 
 ### 4.4 CI (`.github/workflows/`)
 
-- `win7-installer.yml` (`main`): `workflow_dispatch`, `windows-latest`, Rust `1.99.1` с `rust-src`, Node 24, версия pnpm из `packageManager` в корневом `package.json`. После сборки шаг «Проверить импорты exe» (`scripts/win7-imports.py`) падает при подозрительных импортах в обычной таблице (CI-04). Шаг «Скачать WebView2» из релиза `webview2-109`. Артефакт `tulsu-pe-timetable-win7`, хранится 7 дней. Запускается на любой ветке через `--ref`, в том числе на `win7-wry-patch`.
+- `win7-installer.yml` (`main`): `workflow_dispatch` и `workflow_call` (его вызывает `windows.yml` на теге `v*`), `windows-latest`, Rust `1.99.1` с `rust-src`, Node 24, версия pnpm из `packageManager` в корневом `package.json`. После сборки шаг «Проверить импорты exe» (`scripts/win7-imports.py`) падает при подозрительных импортах в обычной таблице (CI-04). Установщик выкладывается артефактом `windows7-installer` как `tulsu-pe-timetable-win7-<версия>-setup.exe`, чтобы не совпасть с установщиком Windows 10/11. Шаг «Скачать WebView2» из релиза `webview2-109`. Артефакт `tulsu-pe-timetable-win7`, хранится 7 дней. Запускается на любой ветке через `--ref`, в том числе на `win7-wry-patch`.
 - `windows.yml` (`main`): `check` на PR, push в `main` и теги (`pnpm check`, прошёл на PR #77 и #78). `build` и `release` на теги `v*` ещё не запускались. Для PR из `win7-wry-patch` в `main` `check` запускается на `windows-latest` и проверяет сборку для Windows 10/11 с патченным `wry`: локально полная Windows-сборка невозможна (раздел 6, п. 25).
 
 ### 4.5 Релиз WebView2

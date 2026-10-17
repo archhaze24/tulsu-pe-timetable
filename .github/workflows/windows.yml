@@ -51,10 +51,16 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Тесты фронтенда входят в pnpm check (vitest).
       - run: pnpm check
 
       - name: Clippy без предупреждений
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      # Из src-tauri: там .cargo/config.toml задаёт пути ts-rs, иначе тест создаст папку bindings.
+      - name: Тесты Rust
+        working-directory: src-tauri
+        run: cargo test --lib
 
   build:
     needs: check
@@ -92,8 +98,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # Windows 7: тот же workflow, что вручную (win7-installer.yml), но с артефактом windows7-installer.
+  build-win7:
+    needs: check
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/win7-installer.yml
+
   release:
-    needs: build
+    needs: [build, build-win7]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -101,14 +113,14 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: windows-installers
+          pattern: windows*
+          merge-multiple: true
           path: installers
 
-      - name: Положить установщики в одну папку и посчитать SHA256
+      - name: Посчитать SHA256
+        working-directory: installers
         run: |
-          cd installers
-          find . -mindepth 2 -type f -exec mv -t . {} +
-          sha256sum *.exe *.msi > SHA256SUMS.txt
+          sha256sum -- * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Опубликовать релиз
