@@ -32,8 +32,8 @@
     "icon": ["icons/icon.png", "icons/icon.ico", "icons/icon.icns"],
     "publisher": "archhaze24",
     "windows": {
-      "wix": {
-        "language": "ru-RU"
+      "nsis": {
+        "installerHooks": "windows/installer-hooks.nsh"
       }
     }
   }

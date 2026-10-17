@@ -87,14 +87,22 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm build
+      - run: pnpm build --bundles nsis
+
+      # Имя без кириллицы: GitHub в релизе теряет русские символы из productName.
+      - name: Подготовить установщик
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $installers = @(Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe)
+          if ($installers.Count -ne 1) { throw "Ожидался один установщик NSIS, найдено: $($installers.Count)" }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item $installers[0].FullName "dist/tulsu-pe-timetable-$version-setup.exe"
 
       - uses: actions/upload-artifact@v7
         with:
           name: windows-installers
-          path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
+          path: dist/*.exe
           if-no-files-found: error
           retention-days: 14
 
@@ -116,13 +124,6 @@ jobs:
           pattern: windows*
           merge-multiple: true
           path: installers
-
-      # upload-artifact сохраняет подпапки nsis/ и msi/ из общего пути bundle/, плоскими их делаем здесь.
-      - name: Собрать установщики в одну папку
-        working-directory: installers
-        run: |
-          find . -mindepth 2 -type f -exec mv {} . \;
-          find . -mindepth 1 -type d -empty -delete
 
       - name: Посчитать SHA256
         working-directory: installers

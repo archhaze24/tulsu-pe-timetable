@@ -40,7 +40,7 @@ pnpm gen:types
 
 ## Релиз для Windows
 
-Установщики (NSIS и MSI) собирает workflow `.github/workflows/windows.yml`. Он проверяет проект (`pnpm check`) на каждом PR и push в `main`.
+Установщик (NSIS, `tulsu-pe-timetable-<версия>-setup.exe`) собирает workflow `.github/workflows/windows.yml`. Он проверяет проект (`pnpm check`) на каждом PR и push в `main`.
 
 Чтобы выпустить версию:
 
