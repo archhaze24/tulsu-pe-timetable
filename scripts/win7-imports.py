@@ -102,6 +102,8 @@ def is_suspect_dll(dll):
 def main():
     if len(sys.argv) != 2:
         raise SystemExit(__doc__)
+    # В CI stdout — cp1252, а вывод содержит кириллицу: печатаем в UTF-8 независимо от локали.
+    sys.stdout.reconfigure(encoding='utf-8')
     path = sys.argv[1]
     eager = read_imports(path)
     delayed = read_imports(path, delay=True)
