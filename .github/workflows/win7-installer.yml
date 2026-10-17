@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: ${{ env.WIN7_TOOLCHAIN }}
           components: rust-src
@@ -30,8 +30,6 @@ jobs:
           workspaces: src-tauri
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 12.6.0
 
       - uses: actions/setup-node@v5
         with:

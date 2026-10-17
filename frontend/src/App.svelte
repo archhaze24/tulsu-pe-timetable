@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { t } from 'svelte-i18n'
   import HomeScreen from './lib/components/home/home-screen.svelte'
   import FacultiesScreen from './lib/components/faculties/faculties-screen.svelte'
   import FacultyEdit from './lib/components/faculties/faculty-edit.svelte'
@@ -17,10 +16,10 @@
   import ScheduleScreen from './lib/components/schedule/schedule-screen.svelte'
   import DebugMenu from './lib/components/ui/debug-menu.svelte'
   import Notices from './lib/components/ui/notices.svelte'
+  import { closeTopOverlay } from './lib/components/ui/overlay'
   import { route } from './lib/stores/router'
-  import { GetConfig, UpdateConfig, type Config } from './lib/api'
+  import { GetConfig, type Config } from './lib/api'
   import { request } from './lib/stores/request'
-  import { theme, setTheme, type ThemeMode } from './lib/stores/theme'
   import { debugMenuOpen, toggleDebugMenu, closeDebugMenu } from './lib/stores/debug'
   import { refreshDirections } from './lib/stores/directions'
   import { refreshFaculties } from './lib/stores/faculties'
@@ -29,35 +28,18 @@
   let configData = $state<Config | null>(null)
   const routeSemesterId = $derived(Number($route.params?.id ?? 0))
 
-  $effect(() => {
-    document.documentElement.classList.toggle('dark', $theme === 'dark')
-  })
-
   async function loadConfig(): Promise<void> {
     const cfg = await request('GetConfig', () => GetConfig())
     if (!cfg) return
     configData = cfg
-    setTheme(cfg.theme === 'dark' ? 'dark' : 'light')
-  }
-
-  async function onToggleTheme(): Promise<void> {
-    // Без загруженного конфига нельзя сохранить: иначе dbPath перезапишется пустой строкой.
-    if (!configData) return
-    const prev = $theme
-    const next: ThemeMode = prev === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    const cfg: Config = { ...configData, theme: next }
-    if (await request('UpdateConfig', () => UpdateConfig(cfg))) {
-      configData = cfg
-    } else {
-      setTheme(prev)
-    }
   }
 
   function onKeyDown(e: KeyboardEvent): void {
     if (e.key === 'F11') {
       e.preventDefault()
       toggleDebugMenu()
+    } else if (e.key === 'Escape' && closeTopOverlay()) {
+      e.preventDefault()
     }
   }
 
@@ -73,11 +55,6 @@
 
 <main class="app-root {$route.name === 'schedule' ? '' : 'flex items-center justify-center'}">
   {#if $route.name === 'home'}
-    <button class="theme-toggle"
-      title={$theme === 'dark' ? $t('theme_light') : $t('theme_dark')} aria-label={$theme === 'dark' ? $t('theme_light') : $t('theme_dark')}
-      disabled={!configData} onclick={onToggleTheme}>
-      {$theme === 'dark' ? '☀️' : '🌙'}
-    </button>
     <HomeScreen />
   {:else if $route.name === 'faculties'}
     <FacultiesScreen />

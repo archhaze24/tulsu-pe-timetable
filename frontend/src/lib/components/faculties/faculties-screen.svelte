@@ -1,8 +1,9 @@
 <script lang="ts">
   import { t } from 'svelte-i18n'
 
-  import { facultiesStore, type Faculty, deleteFaculty } from '../../stores/faculties'
+  import { facultiesStore, deleteFaculty } from '../../stores/faculties'
   import { navigate } from '../../stores/router'
+  import type { Faculty } from '../../api'
   import ConfirmModal from '../ui/confirm-modal.svelte'
   
   let confirmOpen = $state(false)
@@ -15,10 +16,12 @@
   const createNew = () => { navigate('faculty_edit', { id: 0 }) }
   const openArchive = () => { navigate('faculties_archive') }
   const askDelete = (id: number) => { toDeleteId = id; confirmOpen = true }
-  const onConfirm = () => {
-    if (toDeleteId != null) deleteFaculty(toDeleteId)
-    confirmOpen = false
+  const onConfirm = async () => {
+    const id = toDeleteId
+    if (id == null) return
     toDeleteId = null
+    await deleteFaculty(id)
+    confirmOpen = false
   }
   const onCancel = () => { confirmOpen = false; toDeleteId = null }
 
@@ -38,7 +41,7 @@
         <button class="row-item" onclick={() => openFaculty(faculty)}>
           {faculty.name}
         </button>
-        <button class="btn-danger px-3 py-2 text-xs font-medium" onclick={() => askDelete(faculty.id)}>{$t('delete')}</button>
+        <button class="btn-danger px-3 py-2 text-xs font-medium" onclick={() => askDelete(faculty.id)}>{$t('confirm_archive')}</button>
       </div>
     {/each}
   </div>
@@ -46,5 +49,5 @@
   <button class="btn-success mt-8 w-full rounded-xl px-4 py-4 text-base font-semibold shadow-md md:text-lg" onclick={createNew}>
     {$t('create')}
   </button>
-  <ConfirmModal open={confirmOpen} title={$t('confirm_title')} message={$t('confirm_message_generic')} confirmText={$t('confirm')} cancelText={$t('dismiss')} onconfirm={onConfirm} oncancel={onCancel} />
+  <ConfirmModal open={confirmOpen} title={$t('confirm_title')} message={$t('confirm_archive_message')} confirmText={$t('confirm_archive')} cancelText={$t('cancel')} onconfirm={onConfirm} oncancel={onCancel} />
 </div>

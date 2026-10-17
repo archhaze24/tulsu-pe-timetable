@@ -2,7 +2,8 @@
   import { t } from 'svelte-i18n'
   import { onMount } from 'svelte'
   import { navigate } from '../../stores/router'
-  import { semestersStore, type Semester, loadSemesters, deleteSemester } from '../../stores/semesters'
+  import { semestersStore, loadSemesters, deleteSemester } from '../../stores/semesters'
+  import type { Semester } from '../../api'
   import ConfirmModal from '../ui/confirm-modal.svelte'
 
   let confirmOpen = $state(false)
@@ -15,14 +16,16 @@
   const open = (s: Semester) => { navigate('schedule', { id: s.id }) }
 
   const askDelete = (id: number) => { toDeleteId = id; confirmOpen = true }
-  const onConfirm = () => {
-    if (toDeleteId != null) deleteSemester(toDeleteId)
-    confirmOpen = false
+  const onConfirm = async () => {
+    const id = toDeleteId
+    if (id == null) return
     toDeleteId = null
+    await deleteSemester(id)
+    confirmOpen = false
   }
   const onCancel = () => { confirmOpen = false; toDeleteId = null }
 
-  onMount(loadSemesters)
+  onMount(() => { loadSemesters() })
 </script>
 
 <div class="max-w-2xl w-full px-6 py-10">
@@ -48,10 +51,10 @@
           <button class="rounded-md bg-indigo-600/90 px-3 py-2 text-xs font-medium text-white transition hover:bg-indigo-600 active:bg-indigo-700" onclick={() => open(s)}>
             {$t('open_schedule')}
           </button>
-          <button class="btn-danger px-3 py-2 text-xs font-medium" onclick={() => askDelete(s.id)}>{$t('delete')}</button>
+          <button class="btn-danger px-3 py-2 text-xs font-medium" onclick={() => askDelete(s.id)}>{$t('confirm_archive')}</button>
         </div>
       </div>
     {/each}
   </div>
-  <ConfirmModal open={confirmOpen} title={$t('confirm_title')} message={$t('confirm_message_generic')} confirmText={$t('confirm')} cancelText={$t('dismiss')} onconfirm={onConfirm} oncancel={onCancel} />
+  <ConfirmModal open={confirmOpen} title={$t('confirm_title')} message={$t('confirm_archive_message')} confirmText={$t('confirm_archive')} cancelText={$t('cancel')} onconfirm={onConfirm} oncancel={onCancel} />
 </div>

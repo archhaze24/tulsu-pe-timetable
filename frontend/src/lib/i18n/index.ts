@@ -1,11 +1,9 @@
-import { addMessages, init, getLocaleFromNavigator } from 'svelte-i18n'
-import ru from '../../lib/locales/ru.json'
+import { addMessages, init } from 'svelte-i18n'
+import ru from '../locales/ru.json'
 
 addMessages('ru', ru)
 
 init({
   fallbackLocale: 'ru',
-  initialLocale: getLocaleFromNavigator() || 'ru',
+  initialLocale: 'ru',
 })
-
-

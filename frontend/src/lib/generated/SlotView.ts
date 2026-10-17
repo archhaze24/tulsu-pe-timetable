@@ -6,7 +6,7 @@ export type SlotView = { slot: string, startTime: string, endTime: string,
  */
 facultyIds: Array<number>, 
 /**
- * Лимит по `teacher_count` (максимум по парам); `None`, если пар с лимитом нет.
+ * Лимит по `teacher_count`; `None`, если пар с лимитом нет.
  */
 teacherMax: number | null, 
 /**
@@ -16,4 +16,12 @@ teacherCurrent: number,
 /**
  * Преподаватели, назначенные в слоте (по id).
  */
-assignedTeacherIds: Array<number>, };
+assignedTeacherIds: Array<number>, 
+/**
+ * Число пар в слоте (для подтверждения удаления).
+ */
+pairCount: number, 
+/**
+ * Число назначений «преподаватель в паре» (для подтверждения очистки).
+ */
+assignmentCount: number, };

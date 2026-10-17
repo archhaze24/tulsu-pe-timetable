@@ -25,5 +25,5 @@
     {/each}
   </div>
 
-  <div class="mt-8 text-xs text-slate-500 dark:text-slate-400">{$t('app_name')}</div>
+  <div class="mt-8 text-xs text-slate-500">{$t('app_name')}</div>
 </div>

@@ -1,72 +1,45 @@
-import { writable, get } from 'svelte/store'
+import { writable } from 'svelte/store'
 import * as App from '../api'
-import { request } from './request'
-
-export interface Semester {
-  id: number
-  name: string
-  startDate: string
-  endDate: string
-}
+import type { Semester, SemesterRequest } from '../api'
+import { request, requestFlag } from './request'
 
 export const semestersStore = writable<Semester[]>([])
 
-// Даты приходят как строки с временем или без него; нужна только часть YYYY-MM-DD.
-const onlyDate = (v: unknown): string => String(v ?? '').slice(0, 10)
+// Бэкенд отдаёт список по убыванию даты начала; сортировка на фронте страхует порядок при любом источнике.
+const byStartDesc = (a: Semester, b: Semester) => b.startDate.localeCompare(a.startDate)
 
-const mapSemester = (s: App.Semester): Semester => ({
-  id: Number(s.id),
-  name: String(s.name),
-  startDate: onlyDate(s.start_date),
-  endDate: onlyDate(s.end_date)
-})
-
-export async function loadSemesters(): Promise<void> {
-  const data = await request('GetSemesters', () => App.GetSemesters(), true)
-  semestersStore.set((data ?? []).map(mapSemester))
+// При ошибке список не очищается: показано предыдущее состояние и сообщение из request.
+export async function loadSemesters(): Promise<boolean> {
+  const data = await request('GetSemesters', () => App.GetSemesters())
+  if (!data) return false
+  semestersStore.set([...data].sort(byStartDesc))
+  return true
 }
 
-export async function addSemester(data: Omit<Semester, 'id'>): Promise<Semester | null> {
-  const created = await request('CreateSemester', () => App.CreateSemester({
-    name: data.name,
-    start_date: data.startDate,
-    end_date: data.endDate
-  }))
-  if (!created) return null
-  const mapped = mapSemester(created)
-  semestersStore.update(list => [...list, mapped])
-  return mapped
+export async function addSemester(req: Omit<SemesterRequest, 'id'>): Promise<Semester | null> {
+  const created = await request('CreateSemester', () => App.CreateSemester(req))
+  if (created) await loadSemesters()
+  return created
 }
 
-export async function updateSemester(id: number, changes: Partial<Omit<Semester, 'id'>>): Promise<boolean> {
-  const current = get(semestersStore).find(s => s.id === id)
-  if (!current) return false
-  const next = { ...current, ...changes }
-  // Бэкенд возвращает bool, а не обновлённую запись: обновляем стор локально.
-  const ok = await request('UpdateSemester', () => App.UpdateSemester({
-    id,
-    name: next.name,
-    start_date: next.startDate,
-    end_date: next.endDate
-  }))
-  if (ok === undefined) return false
-  semestersStore.update(list => list.map(s => (s.id === id ? next : s)))
-  return Boolean(ok)
+export async function updateSemester(req: SemesterRequest): Promise<boolean> {
+  const ok = await requestFlag('UpdateSemester', () => App.UpdateSemester(req))
+  if (ok) await loadSemesters()
+  return ok
 }
-
 
 export async function deleteSemester(id: number): Promise<boolean> {
-  const ok = await request('DeleteSemester', () => App.DeleteSemester(id))
-  if (ok === undefined) return false
-  semestersStore.update(list => list.filter(s => s.id !== id))
-  return Boolean(ok)
+  const ok = await requestFlag('DeleteSemester', () => App.DeleteSemester(id))
+  if (ok) await loadSemesters()
+  return ok
 }
 
-export async function fetchArchivedSemesters(): Promise<Semester[]> {
-  const data = await request('GetSemestersByArchived', () => App.GetSemestersByArchived(true), true)
-  return (data ?? []).map(mapSemester)
+export function fetchArchivedSemesters(): Promise<Semester[] | null> {
+  return request('GetSemestersByArchived', () => App.GetSemestersByArchived(true))
 }
 
 export async function restoreSemester(id: number): Promise<boolean> {
-  return Boolean(await request('RestoreSemester', () => App.RestoreSemester(id), true))
+  const ok = await requestFlag('RestoreSemester', () => App.RestoreSemester(id))
+  if (ok) await loadSemesters()
+  return ok
 }

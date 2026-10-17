@@ -4,4 +4,5 @@ packages:
 allowBuilds:
   esbuild: true
   svelte-preprocess: true
+  # es5-ext (транзитивно: svelte-i18n → cli-color) в postinstall только печатает сообщение в консоль; сборке не нужен
   es5-ext: false
