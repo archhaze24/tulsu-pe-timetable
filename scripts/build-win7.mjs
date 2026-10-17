@@ -11,9 +11,19 @@ if (!existsSync(runtime)) {
 // На nightly (сборка 2026-10-15) std для этого таргета не собирается, поэтому stable с RUSTC_BOOTSTRAP=1.
 // WIN7_TOOLCHAIN фиксирует версию Rust (так делает CI).
 // CARGO_BUILD_TARGET, а не --target: Tauri CLI проверяет --target по `rustup target list`, где этого таргета нет.
+// На Windows аргументы идут через shell (pnpm — это pnpm.cmd), поэтому пропускаем только простые токены:
+// без пробелов, кавычек и спецсимволов shell. Опции tauri build (--debug, --bundles nsis и т.п.) под это подходят.
+const extraArgs = process.argv.slice(2)
+const SAFE_ARG = /^[A-Za-z0-9_=.,/-]+$/
+const unsafeArgs = extraArgs.filter(arg => !SAFE_ARG.test(arg))
+if (unsafeArgs.length > 0) {
+  console.error(`Недопустимые аргументы: ${unsafeArgs.join(' ')}. Разрешены только буквы, цифры и символы _=.,/-`)
+  process.exit(1)
+}
+
 const result = spawnSync(
   'pnpm',
-  ['tauri', 'build', '--config', 'src-tauri/tauri.win7.conf.json', ...process.argv.slice(2)],
+  ['tauri', 'build', '--config', 'src-tauri/tauri.win7.conf.json', ...extraArgs],
   {
     stdio: 'inherit',
     shell: process.platform === 'win32',

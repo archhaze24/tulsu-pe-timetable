@@ -49,6 +49,14 @@ jobs:
 
       - run: pnpm build:win7
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Падает, если в обычной таблице импорта exe есть функции Windows 8+ (см. docs/windows7.md, 4.6).
+      - name: Проверить импорты exe
+        run: python -B scripts/win7-imports.py src-tauri/target/x86_64-win7-windows-msvc/release/tulsu-pe-timetable.exe
+
       - uses: actions/upload-artifact@v6
         with:
           name: tulsu-pe-timetable-win7

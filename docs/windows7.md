@@ -18,7 +18,7 @@
 - Работает на VM (2026-10-17): установка из NSIS-установщика, запуск, окно и интерфейс, сохранение настроек, факультеты, направления, преподаватели. WebView2 `109.0.1518.78`. По логам и БД сбоев WebView2 и паник нет (раздел 5.4).
 - CI: `win7-installer.yml` на ветке `win7-wry-patch`, run `39021161225`, success, около 10 минут. Артефакт `tulsu-pe-timetable-win7` (NSIS-установщик).
 - Не проверено: рабочий ПК кафедры (русская Win7 SP1); функции WebView2 вне базового сценария (раздел 7); установка поверх старой версии.
-- Известный дефект вне Win7: сохранение преподавателя без направления не проходит (`FOREIGN KEY constraint failed`), пользователю ошибка не показывается. Записан в `docs/code-review.md`, P1-1. Не исправлен, это отдельная работа.
+- Известный дефект вне Win7: сохранение преподавателя без направления не проходит (`FOREIGN KEY constraint failed`), пользователю ошибка не показывается. Исправлен: направление без значения хранится как `NULL` (миграция `teachers_direction_nullable`).
 
 ## 3. Как устроен порт
 
@@ -89,7 +89,7 @@ C:\Users\<user>\AppData\Local\Расписание ТулГУ по физкул�
 | Диалог «WebView2 Runtime не найден» | Патч не получил папку или не прочитал версию | `webview2.log`: есть ли строка `выбрана папка`, почему отвергнут кандидат (`LoadLibraryW` или `GetProcAddress`) |
 | Приложение закрылось без окна | Паника или ошибка создания окна | `webview2.log`: строка `panic: …` |
 | В логе `0x80070032` | Работает нативный путь, патч не активен | Есть ли папка `WebView2` рядом с exe, есть ли строка `выбрана папка` |
-| `FOREIGN KEY constraint failed` в `logs\app-*.log` | Дефект валидации, не Win7 | `docs/code-review.md`, P1-1 |
+| `FOREIGN KEY constraint failed` в `logs\app-*.log` | Дефект валидации, не Win7 | Исправлено (миграция направления) |
 
 ### 3.4 Почему именно так
 
@@ -140,7 +140,7 @@ C:\Users\<user>\AppData\Local\Расписание ТулГУ по физкул�
 - `build.rs`: при `CARGO_CFG_TARGET_VENDOR == "win7"` добавляет `delayimp.lib` и `/DELAYLOAD:` для `advapi32.dll`, `combase.dll`, `api-ms-win-core-winrt-error-l1-1-0.dll` (`cargo:rustc-link-arg-bins`).
 - `src/main.rs`: `#[cfg(all(windows, target_vendor = "win7"))] mod win7_compat;` и вызов `win7_compat::prepare_webview2_runtime()` перед `run()`.
 - `src/win7_compat.rs`:
-  - хуки delay-load: `__pfnDliNotifyHook2` (combase → ole32, winrt-error → kernel32), `__pfnDliFailureHook2` (`EventSetInformation` → 0, `RoOriginateErrorW` → FALSE). Это работает, оставить;
+  - хуки delay-load: `__pfnDliNotifyHook2` (combase → ole32, winrt-error → kernel32), `__pfnDliFailureHook2` (`EventSetInformation` → 0, `RoOriginateErrorW` → FALSE). Это работает, оставить. Подмена грузится по полному пути в `System32` (`GetSystemDirectoryW` + `LoadLibraryW`), а не по короткому имени: поиск по имени смотрит и папку exe (S-04);
   - `prepare_webview2_runtime()`: выбирает папку через `LoadLibraryW` + `GetProcAddress` (точка входа `CreateWebViewEnvironmentWithOptionsInternal`) и ставит `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`. `install_panic_log()` пишет панику в `webview2.log`: в release-сборке (`windows_subsystem = "windows"`) её не видно;
   - хуки в бинарнике, а не в rlib: объекты бинарника линкуются всегда;
   - edition 2024: `#[unsafe(no_mangle)]`, `unsafe extern "system" {}`.
@@ -153,8 +153,8 @@ C:\Users\<user>\AppData\Local\Расписание ТулГУ по физкул�
 
 ### 4.3 Скрипты (`scripts/`)
 
-- `build-win7.mjs`: проверяет `src-tauri/WebView2/msedgewebview2.exe` и запускает `pnpm tauri build --config src-tauri/tauri.win7.conf.json` с `RUSTUP_TOOLCHAIN=${WIN7_TOOLCHAIN ?? 'stable'}`, `RUSTC_BOOTSTRAP=1`, `CARGO_UNSTABLE_BUILD_STD=std`, `CARGO_BUILD_TARGET=x86_64-win7-windows-msvc`.
-- `win7-imports.py`: разбор таблиц импорта PE (обычная и отложенная), запускать как `python3 -B`.
+- `build-win7.mjs`: проверяет `src-tauri/WebView2/msedgewebview2.exe` и запускает `pnpm tauri build --config src-tauri/tauri.win7.conf.json` с `RUSTUP_TOOLCHAIN=${WIN7_TOOLCHAIN ?? 'stable'}`, `RUSTC_BOOTSTRAP=1`, `CARGO_UNSTABLE_BUILD_STD=std`, `CARGO_BUILD_TARGET=x86_64-win7-windows-msvc`. Дополнительные аргументы проверяются: допускаются только буквы, цифры и `_=.,/-`, потому что на Windows они идут через shell (S-05).
+- `win7-imports.py`: разбор таблиц импорта PE (обычная и отложенная), запускать как `python3 -B`. Код возврата 1, если в обычной таблице есть подозрительные импорты. В CI запускается шагом «Проверить импорты exe».
 - `scripts/win7/` (тесты для Windows 7 без сборки Tauri, в репозитории):
   - `test-env.c` (v3): создание environment через `EmbeddedBrowserWebView.dll`, повторяет pure-Go loader: options-объект, пустые `WEBVIEW2_*`, лог после каждого шага, vectored exception handler (код, адрес, смещение в модуле). Прошёл на VM. Базовый тест pure-пути, сборка и запуск в разделе 8;
   - `check-runtime.ps1`: какие функции из импортов runtime-DLL отсутствуют в системе;
@@ -163,7 +163,7 @@ C:\Users\<user>\AppData\Local\Расписание ТулГУ по физкул�
 
 ### 4.4 CI (`.github/workflows/`)
 
-- `win7-installer.yml` (`main`): `workflow_dispatch`, `windows-latest`, Rust `1.99.1` с `rust-src`, Node 24, pnpm 12.6.0. Шаг «Скачать WebView2» из релиза `webview2-109`. Артефакт `tulsu-pe-timetable-win7`, хранится 7 дней. Запускается на любой ветке через `--ref`, в том числе на `win7-wry-patch`.
+- `win7-installer.yml` (`main`): `workflow_dispatch`, `windows-latest`, Rust `1.99.1` с `rust-src`, Node 24, версия pnpm из `packageManager` в корневом `package.json`. После сборки шаг «Проверить импорты exe» (`scripts/win7-imports.py`) падает при подозрительных импортах в обычной таблице (CI-04). Шаг «Скачать WebView2» из релиза `webview2-109`. Артефакт `tulsu-pe-timetable-win7`, хранится 7 дней. Запускается на любой ветке через `--ref`, в том числе на `win7-wry-patch`.
 - `windows.yml` (`main`): `check` на PR, push в `main` и теги (`pnpm check`, прошёл на PR #77 и #78). `build` и `release` на теги `v*` ещё не запускались. Для PR из `win7-wry-patch` в `main` `check` запускается на `windows-latest` и проверяет сборку для Windows 10/11 с патченным `wry`: локально полная Windows-сборка невозможна (раздел 6, п. 25).
 
 ### 4.5 Релиз WebView2
@@ -183,7 +183,7 @@ C:\Users\<user>\AppData\Local\Расписание ТулГУ по физкул�
 
 В `kernel32` после этого +22 функции из статического CRT (`CompareStringW`, `GetACP`, `IsProcessorFeaturePresent`, `VirtualQuery` и др.). Все из эпохи Windows 2000/XP/Vista (по знанию API, страницы Microsoft не открывал).
 
-Итог `scripts/win7-imports.py` на `38975552911`: в обычной таблице 11 DLL, подозрительных импортов нет. В отложенной: `advapi32`, `combase`, `api-ms-win-core-winrt-error-l1-1-0`. Порт добавляет `LoadLibraryW`, `GetProcAddress` (`kernel32`) и `GetFileVersionInfo*`, `VerQueryValueW` (`version.dll`, не `api-ms-win-core-version`, которого на VM нет). Запуск на VM подтверждает, что загрузчик это принимает.
+Итог `scripts/win7-imports.py` на `38975552911`: в обычной таблице 11 DLL, подозрительных импортов нет. В отложенной: `advapi32`, `combase`, `api-ms-win-core-winrt-error-l1-1-0`. Порт добавляет `LoadLibraryW`, `GetProcAddress`, `GetSystemDirectoryW` (`kernel32`); `LoadLibraryA` убран, подмены грузятся по полному пути (S-04) и `GetFileVersionInfo*`, `VerQueryValueW` (`version.dll`, не `api-ms-win-core-version`, которого на VM нет). Запуск на VM подтверждает, что загрузчик это принимает.
 
 ## 5. Проверки: что подтверждено
 
@@ -219,7 +219,7 @@ C:\Users\<user>\AppData\Local\Расписание ТулГУ по физкул�
 
 - Установка из артефакта и запуск: успех. Окно открывается, интерфейс работает.
 - `webview2.log` последнего старта: выбрана папка `…\WebView2`, DLL загружена, точка входа найдена, паник нет.
-- `logs/app-2026-10-17.log`: 4 запуска, сохранение настроек, создание факультета, направления и преподавателя. Ошибки: две `FOREIGN KEY constraint failed` при создании преподавателя (раздел 2, `docs/code-review.md` P1-1).
+- `logs/app-2026-10-17.log`: 4 запуска, сохранение настроек, создание факультета, направления и преподавателя. Ошибки: две `FOREIGN KEY constraint failed` при создании преподавателя (дефект исправлен).
 - БД (проверка на копии вместе с `-wal` и `-shm`): `integrity_check` = `ok`, `foreign_key_check` пустой, режим WAL. Данные: 1 направление, 1 факультет, 1 преподаватель, семестров и пар нет.
 
 ### 5.5 Локально (macOS)
@@ -260,6 +260,7 @@ C:\Users\<user>\AppData\Local\Расписание ТулГУ по физкул�
 25. `libsqlite3-sys` (bundled C) не собирается с macOS для `x86_64-pc-windows-msvc` и `x86_64-win7-windows-msvc`: `cc` вызывает Apple clang без Windows-заголовков (`stdlib.h not found`). Полный Windows-`cargo check` локально не работает. Проверять отдельную копию `wry` (раздел 8), полную сборку делать в CI.
 26. `cargo check --offline` для отдельной копии `wry` падает на `http-range` (зависимость для Linux, в индексе кэша её нет). Нужна сеть на чтение `index.crates.io` и `static.crates.io`.
 27. Отсутствие IID интерфейса в DLL не доказывает, что runtime его не поддерживает. Окончательно проверяет только запуск на VM. По коду `wry` ненайденные интерфейсы в штатном старте окна не нужны.
+28. `LoadLibraryA` с коротким именем ищет DLL и в папке exe. Подмены в `win7_compat.rs` грузятся по полному пути в `System32` (S-04).
 
 ## 7. Итог, открытые вопросы и следующие шаги
 
@@ -275,9 +276,10 @@ C:\Users\<user>\AppData\Local\Расписание ТулГУ по физкул�
 3. Профиль WebView2 (user data) на Win7: где лежит и растёт ли. Не проверено.
 4. Установка поверх старой версии и сохранение данных при обновлении. Не проверено.
 5. Безопасность: фиксированный runtime 109 (Chromium 109) не обновляется сам, а на Win7 новее 109 не поставить. Риск уязвимостей браузера остаётся. Решение за пользователем.
-6. Лицензия Microsoft на Fixed Version и публикация архива в релизе репозитория (`docs/code-review.md`, раздел 11, W-08): проверить до раздачи установщика.
-7. Дефект валидации направления преподавателя (не Win7): `docs/code-review.md`, P1-1. Исправляют отдельные работы.
+6. Лицензия Microsoft на Fixed Version и публикация архива в релизе репозитория: проверить до раздачи установщика.
+7. Дефект валидации направления преподавателя (не Win7) исправлен, отдельных работ не требует.
 8. Путь B (запасной): Go-версия на Win7-ПК, Tauri только для Windows 10/11. Применять, если проверка на рабочем ПК не пройдёт.
+9. Шаг «Проверить импорты exe» в CI ещё не запускался на `windows-latest`. Первый прогон может дать ложное срабатывание: тогда правим список в `win7-imports.py`, а не отключаем шаг. Отрицательный пример (exe с импортом Windows 8+) на скрипте не проверялся.
 
 ## 8. Команды
 
@@ -293,9 +295,8 @@ C:\Users\<user>\AppData\Local\Расписание ТулГУ по физкул�
 ## 9. Состояние git
 
 - `main`: Win7-код из PR #76, #77 и #78 (squash), диагностика PR #79 (`024e289`).
-- Ветка `win7-wry-patch` от `main`: коммит патча `7fea21e`, коммиты документации и `docs/code-review.md`. PR в `main` открыт, номер см. на GitHub.
+- Ветка `win7-wry-patch` от `main`: коммит патча `7fea21e`, коммиты документации. PR в `main` открыт, номер см. на GitHub.
 - Коммиты подписаны ssh-ключом пользователя, автор — пользователь (`~/.gitconfig`).
-- `docs/code-review.md` — ревью кода, отдельный документ, не часть порта. Правится и коммитится только по явной просьбе пользователя.
 - `build` = `origin/build` = `99e1fa6`: старая ветка PR #78. После squash её история не совпадает с `main`, новую работу из неё не вести.
 - Локально есть `backup/build-ad449dc` (старая история, только локально) и `win7` (старая ветка, удалённой нет).
 - Проверить: `git --no-pager log --oneline -5` и `git --no-optional-locks status --short`.
