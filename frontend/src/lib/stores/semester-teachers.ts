@@ -1,27 +1,31 @@
 import { writable } from 'svelte/store'
 import * as App from '../api'
-import type { SemesterTeacher } from '../api'
-import { request } from './request'
+import type { Teacher, UnbindResult } from '../api'
+import { request, requestFlag } from './request'
 
-export type { SemesterTeacher }
+export const semesterTeachersStore = writable<Teacher[]>([])
 
-export const semesterTeachersStore = writable<SemesterTeacher[]>([])
-
-export async function loadSemesterTeachers(semesterId: number): Promise<void> {
-  const data = await request('GetAllTeachersForSemester', () => App.GetAllTeachersForSemester(semesterId), true)
-  semesterTeachersStore.set(data ?? [])
+// При ошибке список не очищается: показано предыдущее состояние и сообщение из request.
+export async function loadSemesterTeachers(semesterId: number): Promise<boolean> {
+  const data = await request('GetAllTeachersForSemester', () => App.GetAllTeachersForSemester(semesterId))
+  if (!data) return false
+  semesterTeachersStore.set(data)
+  return true
 }
 
 export async function bindTeacherToSemester(semesterId: number, teacherId: number): Promise<boolean> {
-  const ok = await request('BindTeacherToSemester', () => App.BindTeacherToSemester({ semester_id: semesterId, teacher_id: teacherId }), true)
-  if (ok === undefined) return false
-  await loadSemesterTeachers(semesterId)
-  return Boolean(ok)
+  const ok = await requestFlag('BindTeacherToSemester', () => App.BindTeacherToSemester({ semesterId, teacherId }))
+  if (ok) await loadSemesterTeachers(semesterId)
+  return ok
 }
 
-export async function unbindTeacherFromSemester(semesterId: number, teacherId: number): Promise<boolean> {
-  const ok = await request('UnbindTeacherFromSemester', () => App.UnbindTeacherFromSemester({ semester_id: semesterId, teacher_id: teacherId }), true)
-  if (ok === undefined) return false
-  await loadSemesterTeachers(semesterId)
-  return Boolean(ok)
+// Только расчёт: что снимется, без изменений в базе.
+export function previewUnbindTeacher(semesterId: number, teacherId: number): Promise<UnbindResult | null> {
+  return request('PreviewUnbindTeacher', () => App.PreviewUnbindTeacher({ semesterId, teacherId }))
+}
+
+export async function unbindTeacherFromSemester(semesterId: number, teacherId: number): Promise<UnbindResult | null> {
+  const result = await request('UnbindTeacherFromSemester', () => App.UnbindTeacherFromSemester({ semesterId, teacherId }))
+  if (result) await loadSemesterTeachers(semesterId)
+  return result
 }

@@ -1,33 +1,30 @@
 <script lang="ts">
   import { t } from 'svelte-i18n'
+  import { overlay } from './overlay'
 
   let {
     open = false,
-    title = '',
-    message = '',
-    confirmText = 'OK',
-    cancelText = 'Cancel',
+    title,
+    message,
+    confirmText,
+    cancelText,
     onconfirm,
     oncancel
   }: {
     open?: boolean
-    title?: string
-    message?: string
-    confirmText?: string
-    cancelText?: string
+    title: string
+    message: string
+    confirmText: string
+    cancelText: string
     onconfirm?: () => void
     oncancel?: () => void
   } = $props()
-
-  const onKeydown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') oncancel?.()
-  }
 </script>
 
 {#if open}
   <div class="fixed inset-0 z-50 flex items-center justify-center">
-    <button class="absolute inset-0 cursor-default bg-black/60" aria-label={$t('close')} tabindex="-1" onclick={oncancel} onkeydown={onKeydown}></button>
-    <div class="modal relative mx-4 w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <button class="absolute inset-0 cursor-default bg-black/60" aria-label={$t('close')} tabindex="-1" onclick={oncancel}></button>
+    <div class="modal relative mx-4 w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" tabindex="-1" use:overlay={{ onclose: () => oncancel?.() }}>
       <div class="modal-section border-b px-5 py-4">
         <h3 id="confirmTitle" class="text-base font-semibold">{title}</h3>
       </div>

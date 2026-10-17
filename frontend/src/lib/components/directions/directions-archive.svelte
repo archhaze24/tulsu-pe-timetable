@@ -2,18 +2,21 @@
   import { t } from 'svelte-i18n'
   import { onMount } from 'svelte'
   import { navigate } from '../../stores/router'
-  import { fetchArchivedDirections, restoreDirection, type Direction } from '../../stores/directions'
+  import { fetchArchivedDirections, restoreDirection } from '../../stores/directions'
+  import type { Direction } from '../../api'
   
   let archived = $state<Direction[]>([])
 
   const back = () => { navigate('directions') }
 
   async function onRestore(id: number) {
-    const ok = await restoreDirection(id)
-    if (ok) archived = archived.filter(d => d.id !== id)
+    if (await restoreDirection(id)) archived = archived.filter(d => d.id !== id)
   }
 
-  onMount(async () => { archived = await fetchArchivedDirections() })
+  onMount(async () => {
+    const list = await fetchArchivedDirections()
+    if (list) archived = list
+  })
 </script>
 
 <div class="max-w-md w-full px-6 py-10">

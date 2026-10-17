@@ -8,41 +8,31 @@ import type { Teacher } from './generated/Teacher'
 import type { Semester } from './generated/Semester'
 import type { ScheduleOutcome } from './generated/ScheduleOutcome'
 import type { ScheduleView } from './generated/ScheduleView'
+import type { TeacherView } from './generated/TeacherView'
+import type { TimePair } from './generated/TimePair'
+import type { UnbindResult } from './generated/UnbindResult'
+
+import type { SaveDirectionRequest } from './generated/SaveDirectionRequest'
+import type { NameRequest } from './generated/NameRequest'
+import type { UpdateNameRequest } from './generated/UpdateNameRequest'
 import type { TeacherRequest } from './generated/TeacherRequest'
 import type { SemesterRequest } from './generated/SemesterRequest'
 import type { BindRequest } from './generated/BindRequest'
+import type { ToggleTeacherRequest } from './generated/ToggleTeacherRequest'
 import type { SlotFacultiesRequest } from './generated/SlotFacultiesRequest'
 import type { AddSlotRequest } from './generated/AddSlotRequest'
-import type { DeleteSlotRequest } from './generated/DeleteSlotRequest'
-import type { ToggleTeacherRequest } from './generated/ToggleTeacherRequest'
-import type { UpdateConfigRequest } from './generated/UpdateConfigRequest'
-import type { UpdateNameRequest } from './generated/UpdateNameRequest'
-import type { NameRequest } from './generated/NameRequest'
+import type { SetSlotTeacherCountRequest } from './generated/SetSlotTeacherCountRequest'
+import type { SlotRequest } from './generated/SlotRequest'
 
-import type { TeacherView } from './generated/TeacherView'
-
-export type { Config, Direction, Faculty, Teacher, Semester, ScheduleOutcome, ScheduleView }
+export type { Config, Direction, Faculty, Teacher, TeacherRequest, Semester, SemesterRequest, SaveDirectionRequest }
+export type { ScheduleOutcome, ScheduleView, TeacherView, TimePair, UnbindResult }
 export type { SlotView } from './generated/SlotView'
 export type { DayView } from './generated/DayView'
-export type ScheduleTeacher = TeacherView
 
+// `data` равен `null`, если `error` не пустой.
 export interface ApiResponse<T> {
-  data: T
+  data: T | null
   error: string
-}
-
-/** Преподаватель в контексте семестра: camelCase, как удобнее экрану (маппинг из `Teacher`). */
-export interface SemesterTeacher {
-  id: number
-  firstName: string
-  lastName: string
-  middleName: string
-  directionId: number
-  directionName: string
-  rate: number
-  isArchived: boolean
-  isGuest: boolean
-  isBound: boolean
 }
 
 const call = <T>(command: string, args?: Record<string, unknown>): Promise<ApiResponse<T>> =>
@@ -52,19 +42,15 @@ const call = <T>(command: string, args?: Record<string, unknown>): Promise<ApiRe
 
 export const GetConfig = () => call<Config>('get_config')
 
-export const UpdateConfig = (config: UpdateConfigRequest) =>
-  call<boolean>('update_config', { config })
 
 // ---------- Направления ----------
-
-export const CreateDirection = (req: NameRequest) => call<Direction>('create_direction', { req })
 
 export const GetDirections = () => call<Direction[]>('get_directions')
 
 export const GetDirectionsByArchived = (isArchived: boolean) =>
   call<Direction[]>('get_directions_by_archived', { isArchived })
 
-export const UpdateDirection = (req: UpdateNameRequest) => call<boolean>('update_direction', { req })
+export const SaveDirection = (req: SaveDirectionRequest) => call<Direction>('save_direction', { req })
 
 export const DeleteDirection = (id: number) => call<boolean>('delete_direction', { id })
 
@@ -111,35 +97,21 @@ export const GetSemestersByArchived = (isArchived: boolean) =>
 
 export const UpdateSemester = (req: SemesterRequest) => call<boolean>('update_semester', { req })
 
-
 export const DeleteSemester = (id: number) => call<boolean>('delete_semester', { id })
 
 export const RestoreSemester = (id: number) => call<boolean>('restore_semester', { id })
 
-export const GetAllTeachersForSemester = async (semesterId: number): Promise<ApiResponse<SemesterTeacher[]>> => {
-  const resp = await call<Teacher[]>('get_all_teachers_for_semester', { semesterId })
-  return {
-    data: (resp.data ?? []).map(t => ({
-      id: t.id,
-      firstName: t.first_name,
-      lastName: t.last_name,
-      middleName: t.middle_name,
-      directionId: t.direction_id,
-      directionName: t.direction_name,
-      rate: t.rate,
-      isArchived: t.is_archived,
-      isGuest: t.is_guest,
-      isBound: t.is_bound
-    })),
-    error: resp.error
-  }
-}
+export const GetAllTeachersForSemester = (semesterId: number) =>
+  call<Teacher[]>('get_all_teachers_for_semester', { semesterId })
 
 export const BindTeacherToSemester = (req: BindRequest) =>
   call<boolean>('bind_teacher_to_semester', { req })
 
+export const PreviewUnbindTeacher = (req: BindRequest) =>
+  call<UnbindResult>('preview_unbind_teacher', { req })
+
 export const UnbindTeacherFromSemester = (req: BindRequest) =>
-  call<boolean>('unbind_teacher_from_semester', { req })
+  call<UnbindResult>('unbind_teacher_from_semester', { req })
 
 // ---------- Расписание ----------
 
@@ -154,7 +126,12 @@ export const SetSlotFaculties = (req: SlotFacultiesRequest) =>
 
 export const AddSlot = (req: AddSlotRequest) => call<ScheduleOutcome>('add_slot', { req })
 
-export const DeleteSlot = (req: DeleteSlotRequest) => call<boolean>('delete_slot', { req })
+export const SetSlotTeacherCount = (req: SetSlotTeacherCountRequest) =>
+  call<ScheduleOutcome>('set_slot_teacher_count', { req })
+
+export const ClearSlotAssignments = (req: SlotRequest) => call<boolean>('clear_slot_assignments', { req })
+
+export const DeleteSlot = (req: SlotRequest) => call<boolean>('delete_slot', { req })
 
 // ---------- Экспорт ----------
 

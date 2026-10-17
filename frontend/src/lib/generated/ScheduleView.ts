@@ -3,8 +3,13 @@ import type { DayView } from "./DayView";
 import type { Direction } from "./Direction";
 import type { Faculty } from "./Faculty";
 import type { TeacherView } from "./TeacherView";
+import type { TimePair } from "./TimePair";
 
 /**
  * Модель расписания для экрана: слоты по дням и ячейки, уже посчитанные на бэкенде.
  */
-export type ScheduleView = { days: Array<DayView>, teachers: Array<TeacherView>, faculties: Array<Faculty>, directions: Array<Direction>, };
+export type ScheduleView = { days: Array<DayView>, teachers: Array<TeacherView>, 
+/**
+ * Все факультеты, включая архивные: их названия нужны в ячейках слотов.
+ */
+faculties: Array<Faculty>, directions: Array<Direction>, standardPairs: Array<TimePair>, };

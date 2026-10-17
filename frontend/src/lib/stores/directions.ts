@@ -1,44 +1,39 @@
 import { writable } from 'svelte/store'
 import * as App from '../api'
-import { request } from './request'
-
-export interface Direction {
-  id: number
-  name: string
-}
+import type { Direction, SaveDirectionRequest } from '../api'
+import { request, requestFlag } from './request'
+import { refreshTeachers } from './teachers'
 
 export const directionsStore = writable<Direction[]>([])
 
-const mapDirection = (d: App.Direction): Direction => ({ id: Number(d.id), name: String(d.name) })
-
-export async function refreshDirections(): Promise<void> {
-  const data = await request('GetDirections', () => App.GetDirections(), true)
-  if (data) directionsStore.set(data.map(mapDirection))
+// При ошибке список не очищается: показано предыдущее состояние и сообщение из request.
+export async function refreshDirections(): Promise<boolean> {
+  const data = await request('GetDirections', () => App.GetDirections())
+  if (!data) return false
+  directionsStore.set(data)
+  return true
 }
 
-export async function fetchArchivedDirections(): Promise<Direction[]> {
-  const data = await request('GetDirectionsByArchived', () => App.GetDirectionsByArchived(true), true)
-  return (data ?? []).map(mapDirection)
+export function fetchArchivedDirections(): Promise<Direction[] | null> {
+  return request('GetDirectionsByArchived', () => App.GetDirectionsByArchived(true))
 }
 
+// Архивация и восстановление меняют подпись направления у преподавателей, поэтому обновляем и их.
 export async function restoreDirection(id: number): Promise<boolean> {
-  const ok = await request('RestoreDirection', () => App.RestoreDirection(id), true)
-  if (ok === undefined) return false
-  await refreshDirections()
-  return Boolean(ok)
+  const ok = await requestFlag('RestoreDirection', () => App.RestoreDirection(id))
+  if (ok) await Promise.all([refreshDirections(), refreshTeachers()])
+  return ok
 }
 
-export async function updateDirection(id: number, name: string): Promise<void> {
-  if (await request('UpdateDirection', () => App.UpdateDirection({ id, name }), true)) await refreshDirections()
+export async function saveDirection(req: SaveDirectionRequest): Promise<boolean> {
+  const saved = await request('SaveDirection', () => App.SaveDirection(req))
+  if (!saved) return false
+  await Promise.all([refreshDirections(), refreshTeachers()])
+  return true
 }
 
-export async function createDirection(name: string): Promise<Direction | null> {
-  const data = await request('CreateDirection', () => App.CreateDirection({ name }), true)
-  if (!data) return null
-  await refreshDirections()
-  return mapDirection(data)
-}
-
-export async function deleteDirection(id: number): Promise<void> {
-  if (await request('DeleteDirection', () => App.DeleteDirection(id), true)) await refreshDirections()
+export async function deleteDirection(id: number): Promise<boolean> {
+  const ok = await requestFlag('DeleteDirection', () => App.DeleteDirection(id))
+  if (ok) await Promise.all([refreshDirections(), refreshTeachers()])
+  return ok
 }

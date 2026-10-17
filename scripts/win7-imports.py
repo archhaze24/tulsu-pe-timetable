@@ -8,6 +8,8 @@
 первом вызове: там Windows 8+ допустимы, если есть подмена в src-tauri/src/win7_compat.rs.
 Список Windows 8+ неполный: это подсказка. Перед выводами проверяйте функцию
 в документации Microsoft (раздел «Minimum supported client»).
+
+Код возврата 1, если в обычной таблице найдены подозрительные импорты (шаг CI «Проверить импорты exe»).
 """
 import struct
 import sys
@@ -31,7 +33,8 @@ DIR_DELAY_IMPORT = 13
 
 
 def read_imports(path, delay=False):
-    data = open(path, 'rb').read()
+    with open(path, 'rb') as f:
+        data = f.read()
     e_lfanew = struct.unpack_from('<I', data, 0x3C)[0]
     if data[e_lfanew:e_lfanew + 4] != b'PE\0\0':
         raise SystemExit('не PE-файл: %s' % path)
@@ -140,6 +143,8 @@ def main():
         print('Отложенные Windows 8+ (ок, только если есть подмена в src-tauri/src/win7_compat.rs):')
         for p in delayed_suspects:
             print('  - ' + p)
+    if problems:
+        raise SystemExit(1)
 
 
 if __name__ == '__main__':

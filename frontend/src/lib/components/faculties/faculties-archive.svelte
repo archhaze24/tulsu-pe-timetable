@@ -2,18 +2,21 @@
   import { t } from 'svelte-i18n'
   import { onMount } from 'svelte'
   import { navigate } from '../../stores/router'
-  import { fetchArchivedFaculties, restoreFaculty, type Faculty } from '../../stores/faculties'
+  import { fetchArchivedFaculties, restoreFaculty } from '../../stores/faculties'
+  import type { Faculty } from '../../api'
   
   let archived = $state<Faculty[]>([])
 
   const back = () => { navigate('faculties') }
 
   async function onRestore(id: number) {
-    const ok = await restoreFaculty(id)
-    if (ok) archived = archived.filter(f => f.id !== id)
+    if (await restoreFaculty(id)) archived = archived.filter(f => f.id !== id)
   }
 
-  onMount(async () => { archived = await fetchArchivedFaculties() })
+  onMount(async () => {
+    const list = await fetchArchivedFaculties()
+    if (list) archived = list
+  })
 </script>
 
 <div class="max-w-md w-full px-6 py-10">

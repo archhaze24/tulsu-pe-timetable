@@ -19,9 +19,9 @@ use std::path::{Path, PathBuf};
 use std::ptr::null_mut;
 
 unsafe extern "system" {
-    fn LoadLibraryA(file_name: *const c_char) -> *mut c_void;
     fn LoadLibraryW(file_name: *const u16) -> *mut c_void;
     fn GetProcAddress(module: *mut c_void, proc_name: *const c_char) -> *const c_void;
+    fn GetSystemDirectoryW(buffer: *mut u16, size: u32) -> u32;
 }
 
 const DLI_NOTE_PRE_LOAD_LIBRARY: u32 = 1;
@@ -52,9 +52,9 @@ type DelayLoadHook = unsafe extern "system" fn(u32, *mut DelayLoadInfo) -> *mut 
 
 /// DLL Windows 8+ и DLL, где те же функции есть на Windows 7. Сначала пробуем настоящую DLL.
 /// У `kernel32` нет `RoOriginateErrorW`, поэтому дальше сработает заглушка из `dli_fail`.
-const REDIRECTS: [(&CStr, &CStr); 2] = [
-    (c"combase.dll", c"ole32.dll"),
-    (c"api-ms-win-core-winrt-error-l1-1-0.dll", c"kernel32.dll"),
+const REDIRECTS: [(&str, &str); 2] = [
+    ("combase.dll", "ole32.dll"),
+    ("api-ms-win-core-winrt-error-l1-1-0.dll", "kernel32.dll"),
 ];
 
 #[allow(non_upper_case_globals)]
@@ -71,19 +71,34 @@ unsafe extern "system" fn dli_notify(reason: u32, info: *mut DelayLoadInfo) -> *
     if reason != DLI_NOTE_PRE_LOAD_LIBRARY {
         return null_mut();
     }
-    let dll = unsafe { CStr::from_ptr((*info).sz_dll) };
-    let Some((_, fallback)) = REDIRECTS
+    let requested = unsafe { CStr::from_ptr((*info).sz_dll) }.to_str().unwrap_or_default();
+    let Some((name, fallback)) = REDIRECTS
         .iter()
-        .find(|(name, _)| name.to_bytes().eq_ignore_ascii_case(dll.to_bytes()))
+        .find(|(name, _)| name.eq_ignore_ascii_case(requested))
     else {
         return null_mut();
     };
-    let module = unsafe { LoadLibraryA(dll.as_ptr()) };
+    let module = load_system_dll(name);
     if module.is_null() {
-        unsafe { LoadLibraryA(fallback.as_ptr()) }
+        load_system_dll(fallback)
     } else {
         module
     }
+}
+
+/// Грузит DLL по полному пути в системную папку. Поиск по короткому имени заодно просматривает
+/// папку exe, и подменить библиотеку можно, положив рядом свою DLL (S-04).
+fn load_system_dll(name: &str) -> *mut c_void {
+    let mut dir = [0u16; 260];
+    let len = unsafe { GetSystemDirectoryW(dir.as_mut_ptr(), dir.len() as u32) } as usize;
+    if len == 0 || len >= dir.len() {
+        return null_mut();
+    }
+    let mut path: Vec<u16> = dir[..len].to_vec();
+    path.push(u16::from(b'\\'));
+    path.extend(name.encode_utf16());
+    path.push(0);
+    unsafe { LoadLibraryW(path.as_ptr()) }
 }
 
 unsafe extern "system" fn dli_fail(reason: u32, info: *mut DelayLoadInfo) -> *mut c_void {
